@@ -56,5 +56,5 @@
 [Python语音基础操作--12.4基于LDA，PCA的语音情感识别](https://blog.csdn.net/sinat_18131557/article/details/106441186)
 
 # Ref
-1. 《语音信号处理试验教程》（梁瑞宇等）
+1. [《语音信号处理试验教程》（梁瑞宇等）](https://github.com/bastamon/sound_signal_process-matlab-)
 
