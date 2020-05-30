@@ -1,0 +1,83 @@
+隐马尔科夫模型（Hidden Markov Models, HMM）作为语音信号的一种统计模型，在语音处理中得到广泛应用。
+
+一个用于语音识别的HMM通常用三组模型参数$\bold{M=\{A,B,\pi\}}$来定义，假设某HMM一共有N个状态$\{S_i\}_{i-1}^N$,那么参数的定义为：
+$\bold{A}$:状态转移概率矩阵；
+$$A=\begin{bmatrix}
+    a_{11}& ...& a_{1N}\\...&...&...\\a_{N1}&...&a_{NN}
+\end{bmatrix}$$
+
+其中$a_{ij}$是从状态$S_i$到状态$S_j$转移时的转移概率，并且$0\leqslant a_{ij}\leqslant 1,\sum_{i=1}^Na_{ij}=1$
+
+$\pi$:系统初始状态概率的集合，$\{\pi\}_{i=1}^N$表示初始状态是$s_i$的概率，即：$\pi_i=P[S_1=s_i](1\leqslant i\leqslant N),\sum_{i=1}^N\pi_{ij}=1$
+$\bold{B}$:处处观测值概率集合，$\bold{B}=\{b_{ij}(k)\}$,其中$b_{ij}(k)$是从状态$S_i$到状态$S_j$转移时，观测值为k的输出概率。根据观察集合$X$的取值可将HMM分为连续型和离散型。
+
+### 前向-后向算法
+用来计算给定观测值序列$\bold{O}=o_1o_2...o_T$以及一个模型$\bold{M=\{A,B,\pi\}}$时，由模型$M$产生出$O$的概率$\bold{P(O|M)}$,设$S_1$是初始状态，$S_N$是终了状态，则前向-后向算法描述如下：
+（1）前向算法
+根据输出观察值序列重前向后递推计算输出序列；
+|符号|函数|
+|--|--|
+|$\bold{O}=o_1o_2...o_T$|输出观察序列列表|
+|$\bold{P(O\|M)}$|给定模型M时，输出符号序列O的概率|
+|$a_{ij}$|状态$S_i$到状态$S_j$的转移概率|
+|$b_{ij}(o_t)$|状态$S_i$到状态$S_j$的转移时输出$o_t$的概率|
+|$\bold{\alpha_t(j)}$|输出部分符号序列$o_1o_2...o_t$并到达状态$S_j$的概率（前向概率）|
+
+$\bold{\alpha_t(j)}$可以由递推计算：初始化为$\bold{\alpha_0(1)}=1,\bold{\alpha_0(j)}=0(j\neq 1)$
+
+递推公式为：
+$$\bold{\alpha_t}(j)=\sum_i\bold{\alpha_{t-1}}(i)a_{ij}b_{ij}(o_t),(t=1,2,...,T;i,j=1,2,...,N)$$
+
+最后结果：
+$$\bold{P(O|M)}=\bold{\alpha_T}(N)$$
+
+t时刻的$\bold{\alpha_t}(j)$等于t-1时刻的所有状态的$\bold{\alpha_{t-1}}(i)a_{ij}b_{ij}(o_t)$的和，如果状态$S_i$到状态$S_j$没有转移时，$a_{ij}=0$.前向算法计算量大大减小，为$N(N+1)(T-1)$次乘法和$N(N-1)(T+1)$次加法。
+（2）后向算法
+定义$\bold{\beta}_t(i)$为后向概率，即从状态$S_i$开始到状态$S_N$结束输出部分符号序列为$o_{t+1},o_{t+2},...,o_{T}$的概率，初始化：$\bold{\beta_T(N)}=1,\bold{\beta_T(j)}=0,(j\neq N)$
+递推公式：
+$$\bold{\beta}_t(i)=\sum_j\beta_{t+1}(j)a_{ij}b_{ij}(o_{t+1}),(t=T,T-1,...,1;i,j=1,2,...,N)$$
+
+所以：$\bold{P(O|M)}=\sum\limits_{i=1}^N\beta_1(i)\pi_i=\beta_0(1)$
+
+后向计算的计算量为$N^2T$，根据定义可以知道：$\bold{P(O|M)}=\sum\limits_{i=1}^N\sum\limits_{j=1}^N\alpha_t(i)a_{ij}b_{ij}(o_{t+1})\beta_{t+1}(j)$
+
+### 维特比（Viterbi）算法
+Viterbi解决的是给定观察符号序列$O=o_1o_2...o_T$和模型$\bold{M=\{A,B,\pi\}}$,求出状态序列$S=s_1s_2...s_T$的问题。最佳意义上的状态序列是使$P(S,O|M)$最大时确定的状态序列，即HMM输出一个观察值序列$O=o_1o_2...o_T$时，可能通过的状态序列有多种，这里面使输出概率最大的序列状态。
+初始化：$\alpha_0'(1)=1,\alpha_0'(j)=0(j\neq 1)$
+递推公式：$\alpha_t'(j)=\underset{i}{\max}\alpha_{t-1}'(j-1)a_{ij}b_{ij}(o_t),(t=1,2,...,T;i,j=1,2,...,N)$
+最后：$P_{\max}(S,O|M)=\alpha_T'(N)$
+每一次使$\alpha_t'(j)$最大的状态i组成的状态序列就是所求的最佳状态序列。求最佳状态序列的方式为：
+1）给定每个状态准备一个数组变量$\alpha_t'(j)$,初始化时，令初始状态$S_1$的数组变量$\alpha_0'(1)=1$,其他状态$\alpha_0'(j)=0$
+2）根据t时刻输出的观察符号$o_t$计算$\alpha_t'(j)=\underset{i}{\max}\alpha_{t-1}'a_{ij}b_{ij}(o_t)=\underset{i}{\max}\{\alpha_{t-1}'a_{1j}b_{1j}(o_t),\alpha_{t-1}'a_{2j}b_{2j}(o_t),...,\alpha_{t-1}'a_{Nj}b_{Nj}(o_t)\}$，当状态$S_i$到状态$S_j$没有转移时，$a_{ij}=0$。设计一个符号数组变量，称为追加状态序列寄存器，利用这个最佳状态序列寄存器吧每次使得$\alpha_t'(j)$最大的状态保存下来。
+3）当$t\neq T$时转移到2），否则转移到4）。
+4）把最终的状态寄存器$\alpha_T'(N)$内的值取出，则$P_{\max}(S,O|M)=\alpha_T'(N)$为最佳状态序列寄存器的值，就是所求的最佳状态序列。
+
+### Baum-Welch算法
+Baum-Welch算法解决的是HMM训练，即HMM参数估计问题，给定一个观察序列$O=o_1o_2...o_T$，该算法能确定一个$M=\{A,B,\pi\}$，使$P(O|M)$最大，这是一个泛函极值问题。由于给定的训练序列有限，因而不存在一个最佳的方法来估计模型，Baum-Welch算法也是利用递归思想，使$P(O|M)$局部放大后，最后得到优化的模型参数$M=\{A,B,\pi\}$。利用Baum-Welch算法重估公式得到的新模型$\hat M$,一定有$P(O|\hat M)>P(O|M)$,重复估计过程，直到$P(O|\hat M)$收敛，不再明显增大，此时的$\hat M$即为所求模型。
+
+给定一个观察值符号序列$O=o_1o_2...o_T$，以及一个需要通过训练进行重估计参数的HMM模型$M=\{A,B,\pi\}$,按前向-后向算法，设对于符号序列，在时刻t从状态$S_i$到状态$S_j$的转移概率为$\gamma_t(i,j)$:
+$$\gamma_t(i,j)=\frac{\alpha_{t-1}(i)a_{ij}b_{ij}(o_t)\beta_t(j)}{\alpha_T(N)}=\frac{\alpha_{t-1}(i)a_{ij}b_{ij}(o_t)\beta_t(j)}{\sum_i\alpha_t(i)\beta_t(i)}$$
+
+同时，对于符号序列$O=o_1o_2...o_T$，在t时刻的Markov链处于状态$S_i$的概率为：
+$$\sum\limits_{j=1}^N\gamma_t(i,j)=\frac{\alpha_t(i)\beta_t(i)}{\sum_i\alpha_t(i)\beta_t(i)}$$
+
+这时，状态$S_i$到状态$S_j$转移次数的期望为$\sum_t\gamma_t(i,j)$，而从状态$S_i$转移出去的次数期望为$\sum_j\sum_t\gamma_t(i,j)$，所以重估公式为：
+$$\hat a_{ij}=\frac{\sum_t\gamma_t(i,j)}{\sum_j\sum_t\gamma_t(i,j)}=\frac{\sum_t\alpha_{t-1}(i)a_{ij}b_{ij}(o_t)\beta_t(j)}{\sum_t\alpha_t(i)\beta_t(i)}$$
+
+$$\hat b_{ij}=\frac{\sum\limits_{t:o_t=k}\gamma_t(i,j)}{\sum_t\gamma_t(i,j)}=\frac{\sum\limits_{t:o_t=k}\alpha_{t-1}(i)a_{ij}b_{ij}(o_t)\beta_t(j)}{\sum_t\alpha_{t-1}(i)a_{ij}b_{ij}(o_t)\beta_t(j)}$$
+
+得到的新模型就是$\hat M=\{\hat A,\hat B,\hat\pi\}$。
+具体的实现步骤为：
+1)适当地选择$a_{ij}$和$b_{ij}(k)$的初始值，常用的设定方式为：给予从状态i转移出去的每条弧相等的转移概率，即
+$$a_{ij}=\frac{1}{从状态i转移出去的弧的条数}$$
+
+给予每个输出观察符号相等的输出概率初始值，即：
+$$b_{ij}(k)=\frac{1}{码本中码字的个数}$$
+
+并且每条弧上给予相同的输出概率矩阵。
+2）给定一个（训练）观察值符号序列$O=o_1o_2...o_T$，由初始模型计算$\gamma_t(i,j)$,并且由重估公式，计算$\hat a_{ij}$和$\hat b_{ij}(k)$.
+3)再给定一个（训练）观察值序列$O=o_1o_2...o_T$，吧前一次的$\hat a_{ij}$和$\hat b_{ij}(k)$作为初始模型计算$\gamma_t(i,j)$，重新计算$\hat a_{ij}$和$\hat b_{ij}(k)$.
+4）直到$\hat a_{ij}$和$\hat b_{ij}(k)$收敛为止。
+
+语音识别一般采用从左到右的HMM，所以初始状态概率$\pi_i$不需要顾及，总设定为:
+$$\pi_1=1,\pi_i=0,(i=2,...,N)$$
