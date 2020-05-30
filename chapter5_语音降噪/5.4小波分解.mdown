@@ -1,0 +1,222 @@
+在传统的傅里叶分析中，信号完全是在频域展开的，不包含任何时频的信息。因为丢弃的时域信息对某些应用同样重要，所以出现很多能表征时域和频域信息的信号分析方法，如短时傅里叶变换、Gabor 变换、时频分析、小波变换等。其中，短时傅里叶变换是在傅里叶分析基础上引入时域信息的最初尝试，在假定一定长度时间窗内的信号是平稳的前提下，短时傅里叶变换可以通过将每个时间窗内的信号展开到频域的方法来获得局部的频域信息。但是，短时傅里叶变换的时域区分度只能依赖于大小不变的时间窗，对某些瞬态信号来说还是粒度太大。所以，对很多应用来说不够精确，短时傅里叶变换仍存在很大的缺陷。
+而小波分析克服了短时傅里叶变换在单分辨率上的缺陷，具有多分辨率分析的特点，在时域和频域都有表征信号局部信息的能力，时间窗和频率窗都可以根据信号的具体形态动态调整。在一般情况下，在低频部分(信号较平稳)可以采用较低的时间分辨率来提高频率的分辨率，在高频情况下(频率变化不大)可以用较低的频率分辨率来换取精确的时间定位。因为这些特性，小波分析可以探测正常信号巾的瞬态，并展示其频率成分，被称为数学显傲镜，广泛应用于各个时频分析领域。
+
+### 小波分析的基本原理
+小波是函数空间$L^2(R)$中满足下述条件的一个函数或者信号$\psi(x)$:
+$$C_{\psi}=\int_{R^{*}}\frac{|\hat \psi(w)|^2}{|w|}dw<\infty$$
+
+其中，$R^*=R-\{0\}$表示非零实数全体，$\hat \psi(w)$是$\psi(w)$的傅里叶变换，$\psi(w)$称为小波母函数。对于实数对$(a,b)$，参数$a$为非零实数，函数
+$$\psi(a,b)(x)=\frac{1}{\sqrt{|a|}}\psi(\frac{x-b}{a})$$
+
+称为由母小波函数$\psi(x)$生成的依赖于参数对$(a,b)$的连续小波函数，检测小波。其中$a$是伸缩因子，$b$为平移因子。
+
+对信号$f(x)$的连续小波变换定义为：
+$$W_f(a,b)=\frac{1}{\sqrt{|a|}}\int_Rf(x)\psi(\frac{x-b}{a})dx=<f(x),\psi_{a,b}(x)>$$
+
+其逆变换为：
+$$f(x)=\frac{1}{C_{\psi}}\int\int_{R\times R^*}W_f(a,b)\psi(\frac{x-b}{a})dadb$$
+
+信号$f(x)$的离散小波变换定义为：
+$$W_f(2^j,2^jk)=2^{-j/2}\int_{-\infty}^{+\infty}f(x)\psi(2^{-j}x-k)dx$$
+
+其逆变换为：
+$$f(t)=C\sum_{j=-\infty}^{+\infty}\sum_{k=-\infty}^{+\infty}W_f(2^j,2^jk)\psi_{(2^j,2^jk)}(x)$$
+
+其中C是与信号无关的常数。
+
+### 小波降噪的基本原理
+小波变换具有很强的去数据相关性，它能够使信号的能量在小波域集中在一些大的小波系数中;而噪声的能量却分布于整个小波域内。因此，经小波分解后，信号的小波系数幅值要大于噪声的系数幅值。因此，幅值比较大的小波系数一般以信号为主，而幅值比较小的系数在很大程度上是噪声。于是，采用阔值的办法可以把信号系数保留，而使大部分噪声系数减小至零。小波降噪的具体处理过穗为:将含噪信号在各尺度上进行小被分解，设定一个闺值，幅值低于该阔值的小波系数置位0，高于该阈值的小波系数或者完全保留，或者做相应的收缩处理。最后，将处理后获得的小波系数用逆小波变换进行重构，得到去噪后的信号。
+去噪处理中，阈值函数体现了超过和低于阈值的小波系数不同处理策略，是阈值去噪中关键的一步。设w表示小波系数，T为给定阈值，$sgn(*)$为符号函数，常见的符号函数有：
+ - 硬阈值
+  $$w_{new}=\left \{\begin{array}{ll}
+      w&,|w|\geqslant T\\0&,|w|<T
+  \end{array}\right.$$
+ 
+ - 软阈值
+  $$w_{new}=\left \{\begin{array}{ll}
+      sgn(w)(|w|-T)&,|w|\geqslant T\\0&,|w|<T
+  \end{array}\right.$$
+
+ - 软硬折中
+  $$w_{new}=\left \{\begin{array}{ll}
+      sgn(w)(|w|-\alpha T)&,|w|\geqslant T\\0&,|w|<T
+  \end{array}\right.,\alpha \in (0,1]$$
+
+ - 加权平均构造
+  $$w_{new}=\left \{\begin{array}{ll}
+      (1-\mu)w+\mu · sgn(w)(|w|-T)&,|w|\geqslant T\\0&,|w|<T
+  \end{array}\right.$$
+
+门限$T$的选择有很多种，比如：
+$$T=\frac{median(w)}{0.6745}\sqrt{2\log [(j+1)/j]}$$
+
+这里，$median(*)$代表中值估计器，$j$表示当前分解层数。
+
+~~~py
+import pywt
+import numpy as np
+
+
+def wavedec(s, jN, wname):
+    ca, cd = [], []
+    a = s
+    for i in range(jN):
+        a, d = pywt.dwt(a, wname)
+        ca.append(a)
+        cd.append(d)
+    return ca, cd
+
+
+def Wavelet_Hard(s, jN, wname):
+    """
+    小波硬阈值滤波
+    :param s:
+    :param jN:
+    :param wname:
+    :return:
+    """
+    ca, cd = wavedec(s, jN, wname)
+    for i in range(len(ca)):
+        thr = np.median(cd[i] * np.sqrt(2 * np.log((i + 2) / (i + 1)))) / 0.6745
+        di = np.array(cd[i])
+        cd[i] = np.where(np.abs(di) > thr, di, 0)
+    calast = np.array(ca[-1])
+    thr = np.median(calast * np.sqrt(2 * np.log((jN + 1) / jN))) / 0.6745
+    calast = np.where(np.abs(calast) > thr, di, 0)
+    cd.append(calast)
+    coef = cd[::-1]
+    res = pywt.waverec(coef, wname)
+    return res
+
+
+def Wavelet_Soft(s, jN, wname):
+    """
+    小波软阈值滤波
+    :param s:
+    :param jN:
+    :param wname:
+    :return:
+    """
+    ca, cd = wavedec(s, jN, wname)
+    for i in range(len(ca)):
+        thr = np.median(cd[i] * np.sqrt(2 * np.log((i + 2) / (i + 1)))) / 0.6745
+        di = np.array(cd[i])
+        cd[i] = np.where(np.abs(di) > thr, np.sign(di) * (np.abs(di) - thr), 0)
+    calast = np.array(ca[-1])
+    thr = np.median(calast * np.sqrt(2 * np.log((jN + 1) / jN))) / 0.6745
+    calast = np.where(np.abs(calast) > thr, np.sign(calast) * (np.abs(calast) - thr), 0)
+    cd.append(calast)
+    coef = cd[::-1]
+    res = pywt.waverec(coef, wname)
+    return res
+
+
+def Wavelet_hardSoft(s, jN, wname, alpha=0.5):
+    """
+    小波折中阈值滤波
+    :param s:
+    :param jN:
+    :param wname:
+    :param alpha:
+    :return:
+    """
+    ca, cd = wavedec(s, jN, wname)
+    for i in range(len(ca)):
+        thr = np.median(cd[i] * np.sqrt(2 * np.log((i + 2) / (i + 1)))) / 0.6745
+        di = np.array(cd[i])
+        cd[i] = np.where(np.abs(di) > thr, np.sign(di) * (np.abs(di) - alpha * thr), 0)
+    calast = np.array(ca[-1])
+    thr = np.median(calast * np.sqrt(2 * np.log((jN + 1) / jN))) / 0.6745
+    calast = np.where(np.abs(calast) > thr, np.sign(calast) * (np.abs(calast) - alpha * thr), 0)
+    cd.append(calast)
+    coef = cd[::-1]
+    res = pywt.waverec(coef, wname)
+    return res
+
+
+def Wavelet_average(s, jN, wname, mu=0.1):
+    """
+    小波加权平均滤波
+    :param s:
+    :param jN:
+    :param wname:
+    :param alpha:
+    :return:
+    """
+    ca, cd = wavedec(s, jN, wname)
+    for i in range(len(ca)):
+        thr = np.median(cd[i] * np.sqrt(2 * np.log((i + 2) / (i + 1)))) / 0.6745
+        di = np.array(cd[i])
+        cd[i] = np.where(np.abs(di) > thr, (1 - mu) * di + np.sign(di) * mu * (np.abs(di) - thr), 0)
+    calast = np.array(ca[-1])
+    thr = np.median(calast * np.sqrt(2 * np.log((jN + 1) / jN))) / 0.6745
+    calast = np.where(np.abs(calast) > thr, (1 - mu) * calast + np.sign(calast) * mu * (np.abs(calast) - thr), 0)
+    cd.append(calast)
+    coef = cd[::-1]
+    res = pywt.waverec(coef, wname)
+    return res
+
+~~~
+
+
+~~~py
+from chapter2_基础.soundBase import *
+from chapter5_语音降噪.Wavelet import *
+
+plt.rcParams['font.sans-serif'] = ['SimHei']
+plt.rcParams['axes.unicode_minus'] = False
+
+
+def awgn(x, snr):
+    snr = 10 ** (snr / 10.0)
+    xpower = np.sum(x ** 2) / len(x)
+    npower = xpower / snr
+    return x + np.random.randn(len(x)) * np.sqrt(npower)
+
+
+data, fs = soundBase('C5_4_y.wav').audioread()
+data -= np.mean(data)
+data /= np.max(np.abs(data))
+SNR = 5
+N = len(data)
+s = awgn(data, SNR)
+time = [i / fs for i in range(N)]  # 设置时间
+
+wname = 'db7'
+jN = 6
+
+res_s = Wavelet_Soft(s, jN, wname)
+res_d = Wavelet_Hard(s, jN, wname)
+res_hs = Wavelet_hardSoft(s, jN, wname)
+res_a = Wavelet_average(s, jN, wname)
+
+plt.figure(figsize=(14, 10))
+plt.subplot(3, 2, 1)
+plt.plot(time, data)
+plt.ylabel('原始信号')
+plt.subplot(3, 2, 2)
+plt.plot(time, s)
+plt.ylabel('加噪声信号')
+plt.subplot(3, 2, 3)
+plt.ylabel('小波软阈值滤波')
+plt.plot(time, res_s)
+
+plt.subplot(3, 2, 4)
+plt.ylabel('小波硬阈值滤波')
+plt.plot(time, res_d)
+
+plt.subplot(3, 2, 5)
+plt.ylabel('小波折中阈值滤波')
+plt.plot(time, res_hs)
+
+plt.subplot(3, 2, 6)
+plt.ylabel('小波加权滤波')
+plt.plot(time, res_a)
+
+plt.savefig('images/wavelet.png')
+plt.close()
+
+~~~
+
+![wavelet](images/wavelet.png)
+

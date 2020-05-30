@@ -1,0 +1,165 @@
+自适应差分脉冲编码调制(Adaptive Differential Pulse Code Modulation, ADPCM)结合了ADM的差分信号与PCM的二进制编码的方法，采用预测编码来压缩数据量。体现在使用预测技术减少量化编码器输入信号的冗余度，将差值信号编码以提高效率，降低编码信号速率，广泛应用与语音和图像信号的数字化。
+### 自适应量化
+在语音信号量化器中，为了适应信号的动态范围，需要把量化阶距选的足够大，另外为了减少量化噪声，有希望减小量化阶距。语音信号在很宽的范围内幅值变化，为了适应这样的变化，就是使用自适应量化器。也就是让量化阶距与输入信号的幅度变化向匹配，一个等效的方法是，在一个固定的量化器前加入一个自适应的增益控制，是的进入量化器的输入信号方差保持为固定常数。
+
+根据对$\Delta (n)$和$G(n)$的估计方法不同，自适应量化有两类：1. 输入幅值或方差由输入本身估算——前反馈自适应量化器（AQF）;2. 量化阶距根据量化器输出$\hat x(n)$来进行自适应调整，或等效用输出码字$c(n)$进行自适应调整——反馈自适应量化器(AQB)。
+
+### 差值脉冲编码调制
+差值脉冲编码调制器(DPCM)是指量化器具有两个以上电平的差值量化系统。与直接量化PCM相比，带固定预测器的DPCM系统在信噪比方面可以有4-11dB的改善。在从没有预测到一阶预测时，预测阶数一直增到4或5得到较小的附加增益，信噪比上的增益意味着可用较少位数得到给定的SNR，其位数少于在使用同样量化器直接对话音波形进行量化时所需要的值。例如对于带均匀固定量化器的差值PCM系统来说，与直接作用在输入端的电平数日相同的量化器相比，差值PCM系统信噪比大约要改善6dB。差值方案具有如PCM那样的性能， 即每增加一位码SNR提高6dB，并且信噪比同样依赖于信号电平。类似地，在差值结构中采用p律量化器可使SNR改善6dB，同时其信噪比特性对输入信号也是不敏感的。
+
+由于讲话者和语音内容不同以及语音通信巾罔有的信号电平变化，若要使输入信号电平
+在很宽范嗣内变化时系统仍然能达到最好的性能，需要采用自适应预测和自适应量化，种系统因而被称为ADPCM。
+
+### 自适应差值脉冲编码调制
+预测方程为：
+$$\bar x(n)=\sum^p_{k=1}a_k(n)\hat x(n-k)$$
+
+预测器系数自适应时，通常加色短时间内语音信号的性质保持恒定。采用短时间内方均预测误差最小的准则选择预测器系数，最佳预测其系数满足：
+$$R_n(j)=\sum_{k=1}^pa_k(n)R_n(j,k),j=1,2,...,p$$
+
+$$R_n(j)=\sum_{m=-\infty}^{\infty}x(m)w(n-m)x(j+m)w(n-m-j),0\leqslant j\leqslant p$$
+
+~~~py
+import numpy as np
+
+
+def adpcm_decoder(code, sign_bit):
+    """
+    APDCM解码函数
+    :param code:
+    :param sign_bit:
+    :return:
+    """
+    l = len(code)
+    y = np.zeros(l)
+    ss2 = np.zeros(l)
+    ss2[0] = 1
+    # 生成步长查找表
+    index = [-1, 4]
+    currentIndex = 0
+    startval = 1
+    endval = 127
+    base = np.exp(np.log(2) / 8)
+    # 近似步长
+    const = startval / base
+    numSteps = int(round(np.log(endval / const) / np.log(base)))
+    n = [i + 1 for i in range(numSteps)]
+    base = np.exp(np.log(endval / startval) / (numSteps - 1))
+    const = startval / base
+    tabel2 = np.round(const * np.power(base, n))
+
+    for n in range(1, l):
+        neg = code[n] >= sign_bit
+        if neg:
+            temp = code[n] - sign_bit
+        else:
+            temp = code[n]
+        temp2 = (temp + 0.5) * ss2[n - 1]
+        if neg:
+            temp2 = -temp2
+        y[n] = y[n - 1] + temp2
+        if y[n] > 127:
+            y[n] = 127
+        elif y[n] < -127:
+            y[n] = -127
+        # 计算新的步长
+        currentIndex += index[int(temp)]
+        if currentIndex < 0:
+            currentIndex = 0
+        elif currentIndex > numSteps:
+            currentIndex = numSteps
+        ss2[n] = tabel2[currentIndex]
+    return y / 128
+
+
+def adpcm_encoder(x, sign_bit):
+    """
+    APDCM编码函数
+    :param x:
+    :param sign_bit:
+    :return:
+    """
+    x *= 128
+    l = len(x)
+    # 生成步长查找表
+    index = [-1, 4]
+    currentIndex = 1
+    startval = 1
+    endval = 127
+    base = np.exp(np.log(2) / 8)
+    # 近似步长
+    const = startval / base
+    numSteps = int(round(np.log(endval / const) / np.log(base)))
+    n = [i + 1 for i in range(numSteps)]
+    base = np.exp(np.log(endval / startval) / (numSteps - 1))
+    const = startval / base
+    tabel2 = np.round(const * np.power(base, n))
+
+    ss = np.zeros(l)
+    ss[0] = tabel2[0]
+    z = np.zeros(l)
+    code = np.zeros(l)
+    d = np.zeros(l)
+    neg = 0
+    for n in range(1, l):
+        d[n] = x[n] - z[n - 1]
+        if d[n] < 0:
+            neg = 1
+            code[n] += sign_bit
+            d[n] = -d[n]
+        else:
+            neg = 0
+        if d[n] >= ss[n - 1]:
+            code[n] += 1
+        if neg:
+            temp = code[n] - sign_bit
+        else:
+            temp = code[n]
+        temp2 = (temp + 0.5) * ss[n - 1]
+        if neg:
+            temp2 = -temp2
+        z[n] = z[n - 1] + temp2
+        if z[n] > 127:
+            z[n] = 127
+        elif z[n] < -127:
+            z[n] = -127
+        # 计算新的步长
+        currentIndex += index[int(temp)]
+        if currentIndex < 0:
+            currentIndex = 0
+        elif currentIndex > numSteps:
+            currentIndex = numSteps
+        ss[n] = tabel2[currentIndex]
+    return code
+
+~~~
+
+~~~py
+from chapter2_基础.soundBase import *
+from chapter3_分析实验.lpc import lpc_coeff
+
+from chapter6_语音编码.ADPCM import *
+
+plt.rcParams['font.sans-serif'] = ['SimHei']
+plt.rcParams['axes.unicode_minus'] = False
+
+data, fs = soundBase('C6_3_y.wav').audioread()
+N = len(data)
+time = [i / fs for i in range(N)]  # 设置时间
+sig_bit = 2
+
+ss = adpcm_encoder(data, sig_bit)
+yy = adpcm_decoder(ss, sig_bit)
+
+plt.subplot(2, 1, 1)
+plt.plot(time, data / np.max(data), 'k')
+plt.plot(time, yy / np.max(yy), 'c')
+plt.title('ADPCM解码')
+plt.legend(['信号', '解码信号'])
+plt.subplot(2, 1, 2)
+plt.plot(data / np.max(data) - yy / np.max(yy))
+plt.title('误差')
+plt.show()
+
+~~~
+![adpcm](images/ADPMC.png)

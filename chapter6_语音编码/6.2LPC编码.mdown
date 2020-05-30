@@ -1,0 +1,43 @@
+线性预测编码(linear predictive coding， LPC) 是运用于音频信号处理与语音处理的压缩编码方式，根据线性预测模型的信息表示数字语音信号谱包络。它是最有效的语音分析技术之一，也是低位速高质量语音编码的最有用的方法之一，能够提供非常精确的语音参数预测。线性预测编码通过估计共振峰剔除它们在语音信号中的作用，估计保留的蜂鸣音强度与频率来分析语音信号;同时，使用蜂呜参数与残余信号生成源信号，使用共振峰生成表示声道的滤波器，源、信号经过滤坡器的处理来逆向合成语音信号。由于语音信号随着时间变化这个过程是在一段段的语音信号帧上进行处理的，通常每秒30-50帧就能对可理解的信号进行很好的压缩。
+
+线性预测编码通常用于语音的重新合成，它是电话公司使用的声音压缩格式，如GSM标准就在使用LPC编码格式。它还用作安全无线通信中的格式，在安全的无线通信中，声音必须进行数字化、加密然后通过狭窄的语音信道传输。
+
+线性预测分析的基本思想是:由于语音样点之间存在相关性，所以可以用过去的样点值来预测现在或将来的样点值，即一个语音抽样可以用过去若干个语音抽样或它们的线性组合来逼近。通过使实现语音抽样与线性预测抽样之间的误差在某个准则(通常为最小均方误差准则)下达到最小值来决定一组预测系数。这一组预测系数就反映了语音信号的特性，可以作为语音信号的特征参数用于语音合成和语音识别等。
+
+线性预测分析的基本假设是认为语音信号是一个激励信号通过一个滤波器得到的。采样点的输出$s(n)$可以用前p个样本的线性组合来表示：
+$$\hat s(n)=\sum^p a_is(n-i)$$
+
+通过$E(n)=s(n)-\hat s(n)$最小来求解。LPC参数是模拟人的发声器官，是基于语音合成的模型参数，每个声管对应一个LPC模型的极点，一般情况下，极点个数为12~16之间，就可以足够清晰地描述语音信号的特征，选择p=12可以对绝大多数语音信号的声道模型取得足够的近似，增大p可以改善近似效果，但是计算量变大。
+
+
+~~~py
+from scipy.signal import filtfilt
+
+from chapter2_基础.soundBase import *
+from chapter3_分析实验.lpc import lpc_coeff
+
+plt.rcParams['font.sans-serif'] = ['SimHei']
+plt.rcParams['axes.unicode_minus'] = False
+
+data, fs = soundBase('C6_1_y.wav').audioread()
+N = len(data)
+time = [i / fs for i in range(N)]  # 设置时间
+p = 12
+ar, g = lpc_coeff(data, p)
+ar[0] = 0
+est_x = filtfilt(-ar, [1], data)
+
+plt.subplot(2, 1, 1)
+plt.plot(time, data, 'k')
+plt.plot(time, est_x, 'c')
+plt.title('LPC解码')
+plt.legend(['信号', '解码信号'])
+plt.subplot(2, 1, 2)
+plt.plot(est_x - data)
+plt.title('误差')
+plt.savefig('LPC解码.png')
+plt.close()
+
+~~~
+
+![LPC](images/LPC解码.png)

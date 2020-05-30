@@ -1,0 +1,163 @@
+语音合成主要可分为波形合成法，参数合成法，规则合成法。
+ - 波形合成法
+   - 波形编码合成，直接把需要合成的语音通过编码的形式进行存储，称为PCM合成。
+   - 波形编辑合成，通过在音库中采取语音的合成单元波形，对这些波形进行编辑拼接后输出。
+ - 参数合成法
+   - 分析法：提取语音参数，压缩存储量，然后人工控制这些参数的生成。
+ - 规则法
+   - 通过语音学规则产生语音。系统中最小语音单位的声学参数，以及由音素组成音节，由音节组成词，由词组成句子。
+
+
+### 帧合并
+分帧处理后，需要将多个帧合并起来，涉及的操作有去创函数和去交叠操作。方法为:
+ - 通过IFFT把一帧频域数据转化为时域数据。
+ - 将一组激励脉冲通过一个滤波器。
+  
+常用的三种数据叠加方法为重叠相加法，重叠存储法，线性比例重叠相加法。
+#### 重叠相加法
+假设信号长度为$N_1$,窗函数$h(n)$的长度为$N$，每帧的信号$x_i(n)$长度为$M$，将每帧信号与窗函数后面补零，使得长度都为$N+M-1$，得到$\hat x_i(n)$和$\hat h(n)$。计算$\hat x_i(n)$和$\hat h(n)$的卷积结果，可以使用FFT和IFFT来计算结果。卷积结果$y(n)$的长度为N+M-1,把重叠部分相加，与不重叠部分共同构成输出。把重叠相加推广到时域，信号$x(n)$是分帧的，每帧为：
+$$x_i(m)=\left \{\begin{array}{ll}
+  x(n)&,(i-1)\Delta L+1 \leqslant n \leqslant i\Delta L +L\\
+  0&,其他
+\end{array} \right.,m\in [1,L]$$
+
+$y_{i-1}(m)$与$y_{i}(m)$有M个样点重叠，重叠部分为$(i-1)\Delta L+1 到 (i-1)\Delta L +M$，输出为：
+$$y(n)=\left \{\begin{array}{ll}
+  y(n)&,n\leqslant (i-1)\Delta L\\
+  y(n)+y_i(m)&,(i-1)\Delta L+1 \leqslant n \leqslant (i-1)\Delta L +M,M\in[1,M]\\
+  y_i(m)&,(i-1)\Delta L+1+M \leqslant n \leqslant (i-1)\Delta L+L,M\in[M+1,L]
+\end{array} \right.$$
+
+#### 重叠存储法
+重叠存储法是分帧数据在前面补零达到N+M-1的长度。FFT后只取后面M个样本点，输出到输出序列上。
+$$y(n)=\left \{\begin{array}{ll}
+  y(n)&,n\leqslant (i-1)\Delta L\\
+  y_i(m)&,(i-1)\Delta L+1 \leqslant n \leqslant (i-1)\Delta L +M,M\in[1,\Delta L]\\
+\end{array} \right.$$
+
+#### 线性比例重叠相加
+如果前一帧和下一帧的变化较大，那么用重叠相加法就不合适了。可以将重叠部分进行比例计权后相加。假设重叠部分长度为M,两个斜三角的窗函数$w_1(n)=(n-1)/M$和$w_2(n)=(M-n)/M$，$n\in [1,M]$。
+
+如果前一帧的重叠部分为$y_1$,后一帧的重叠部分为$y_2$。那么$y(n)=y_1(n)w_1(n)+y_2(n)w_2(n)$。
+
+$$y(n)=\left \{\begin{array}{ll}
+  y(n)&,n\leqslant (i-1)\Delta L\\
+  y(n)w_2(n)+y_i(m)w_1(n)&,(i-1)\Delta L+1 \leqslant n \leqslant (i-1)\Delta L +M,M\in[1,M]\\
+  y_i(m)&,(i-1)\Delta L+1+M \leqslant n \leqslant (i-1)\Delta L+L,M\in[M+1,L]
+\end{array} \right.$$
+
+
+~~~py
+import numpy as np
+
+
+def Filpframe_OverlapA(x, win, inc):
+    """
+    基于重叠相加法的信号还原函数
+    :param x: 分帧数据
+    :param win: 窗
+    :param inc: 帧移
+    :return:
+    """
+    nf, slen = x.shape
+    nx = (nf - 1) * inc + slen
+    frameout = np.zeros(nx)
+    x = x / win
+    for i in range(nf):
+        start = i * inc
+        frameout[start:start + slen] += x[i, :]
+    return frameout
+
+
+def Filpframe_OverlapS(x, win, inc):
+    """
+    基于重叠存储法的信号还原函数
+    :param x: 分帧数据
+    :param win: 窗
+    :param inc: 帧移
+    :return:
+    """
+    nf, slen = x.shape
+    nx = (nf - 1) * inc + slen
+    frameout = np.zeros(nx)
+    x = x / win
+    for i in range(nf):
+        frameout[slen + (i - 1) * inc:slen + i * inc] += x[i, slen - inc:]
+    return frameout
+
+
+def Filpframe_LinearA(x, win, inc):
+    """
+    基于比例重叠相加法的信号还原函数
+    :param x: 分帧数据
+    :param win: 窗
+    :param inc: 帧移
+    :return:
+    """
+    nf, slen = x.shape
+    nx = (nf - 1) * inc + slen
+    frameout = np.zeros(nx)
+    overlap = len(win) - inc
+    x = x / win
+    w1 = [i / overlap for i in range(overlap)]
+    w2 = [i / overlap for i in range(overlap - 1, -1, -1)]
+    for i in range(nf):
+        if i == 0:
+            frameout[:slen] = x[i, :]
+        else:
+            M = slen + (i - 1) * inc
+            y = frameout[M - overlap:M] * w2 + x[i, :overlap] * w1
+            xn = x[i, overlap:]
+            yy = np.hstack((y, xn))
+            frameout[M - overlap:M - overlap + slen] += yy
+    return frameout
+
+~~~
+
+~~~py
+from chapter2_基础.soundBase import *
+from chapter7_语音合成.flipframe import *
+from chapter3_分析实验.C3_1_y_1 import enframe
+
+plt.rcParams['font.sans-serif'] = ['SimHei']
+plt.rcParams['axes.unicode_minus'] = False
+
+data, fs = soundBase('C7_1_y.wav').audioread()
+
+wlen = 256
+wnd = np.hamming(wlen)
+overlap = 100
+f = enframe(data, wnd, overlap)
+plt.figure(figsize=(14, 12))
+# 7.1.1
+fn_overlap = Filpframe_OverlapA(f, wnd, overlap)
+plt.subplot(3, 2, 1)
+plt.plot(data / np.max(np.abs(data)), 'k')
+plt.title('原始信号')
+plt.subplot(3, 2, 2)
+plt.title('还原信号-重叠相加法')
+plt.plot(fn_overlap / np.max(np.abs(fn_overlap)), 'c')
+
+# 7.1.2
+fn_s = Filpframe_OverlapS(f, wnd, overlap)
+plt.subplot(3, 2, 3)
+plt.plot(data / np.max(np.abs(data)), 'k')
+plt.title('原始信号')
+plt.subplot(3, 2, 4)
+plt.title('还原信号-重叠存储法')
+plt.plot(fn_s / np.max(np.abs(fn_s)), 'c')
+
+# 7.1.3
+fn_l = Filpframe_LinearA(f, wnd, overlap)
+plt.subplot(3, 2, 5)
+plt.plot(data / np.max(np.abs(data)), 'k')
+plt.title('原始信号')
+plt.subplot(3, 2, 6)
+plt.title('还原信号-线性叠加法')
+plt.plot(fn_l / np.max(np.abs(fn_l)), 'c')
+
+plt.savefig('images/flipframe.png')
+plt.close()
+~~~
+
+![合成](images/flipframe.png)

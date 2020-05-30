@@ -1,0 +1,96 @@
+脉冲编码调制(Pulse Code Modulation, PCM)是语音信号的重要编码方式之一。语音编码是将模拟信号转为数字信号的语音通信技术，分为波形编码、参量编码和混合编码等类型。波形编码针对语音波形进行，在降低量化样本比特数的同时保持了良好的语音质量。PCM编码就是一种波形编码方法，通过每隔一段时间对模拟语音信号采样，将其取整量化，用二进制码表示抽样量化的隔值，实现将语音数字化的编码调制。
+PCM是现代数字传输系统普遍采用的调制方式。PCM可以向用户提供多种业务，包括2M-155Mbit/s速率的数字数据专线业务和语音、图像、远程教学等业务，适用于传输速率要求高、需要更高带宽的应用，在语音信号处理中有着广泛的运用。PCM 分为抽样、量化和编码三个步骤。
+![PCM](images/PCM流程.png)
+抽样过程就是抽取某点的频率值的过程。显然，在1 s 内抽取的点越多，获取的频率信息越丰富。为了复原波形， 一次振动中必须有2 个点的采样，人耳能够感觉到的最高频率为20 kHz ，因此要满足人耳的听觉要求，则需要至少每秒进行40000 次采样，即采样率为44.1 kHz 。光有频率信息是不够的，还必须获得该频率的能量值并量化，用于表示信号强度。量化电平数为2 的整数次幕，常用16 bit 的采样大小即$2^{16}$。例如对一个语音信号进行8次采样，采样点分别对应的能量值分别为A1-A8，使用2 bit的采样大小只能保留A1-A8中4个点，而进行3 bit的采样则刚好记录下8 点的所有信息。采样率和采样大小的值越大，记录的波形越接近原始信号。
+
+抽样量化就是常规A/D的过程，量化后的抽样信号在一定范围内仅有有限个可取的样值，且信号正负幅度分布的对称性使正负样值个数相等，若将有限个量化样值绝对值从小到大排列，依次赋予十进制数字，以﹢、﹣号为前缀，则量化后的抽样信号就转化为按时序排列的十进制数字码流。将数字转化为二进制编码，根据十进制代码总个数确定二进制位数，即字长。这样将量化的抽样信号变成给定字长的二进制码流的过程就是编码。
+
+~~~py
+import numpy as np
+
+
+def PCM_encode(x):
+    n = len(x)
+    out = np.zeros((n, 8))
+    for i in range(n):
+        # 符号位
+        if x[i] > 0:
+            out[i, 0] = 1
+        else:
+            out[i, 0] = 0
+        # 数据位
+        if abs(x[i]) < 32:
+            out[i, 1], out[i, 2], out[i, 3], step, st = 0, 0, 0, 2, 0
+        elif abs(x[i]) < 64:
+            out[i, 1], out[i, 2], out[i, 3], step, st = 0, 0, 1, 2, 32
+        elif abs(x[i]) < 128:
+            out[i, 1], out[i, 2], out[i, 3], step, st = 0, 1, 0, 4, 64
+        elif abs(x[i]) < 256:
+            out[i, 1], out[i, 2], out[i, 3], step, st = 0, 1, 1, 8, 128
+        elif abs(x[i]) < 512:
+            out[i, 1], out[i, 2], out[i, 3], step, st = 1, 0, 0, 16, 256
+        elif abs(x[i]) < 1024:
+            out[i, 1], out[i, 2], out[i, 3], step, st = 1, 0, 1, 32, 512
+        elif abs(x[i]) < 2048:
+            out[i, 1], out[i, 2], out[i, 3], step, st = 1, 1, 0, 64, 1024
+        else:
+            out[i, 1], out[i, 2], out[i, 3], step, st = 1, 1, 1, 128, 2048
+
+        if abs(x[i]) >= 4096:
+            out[i, 1:] = np.array([1, 1, 1, 1, 1, 1])
+        else:
+            tmp = bin(int((abs(x[i]) - st) / step)).replace('0b', '')
+            tmp = '0' * (4 - len(tmp)) + tmp
+            t = [int(k) for k in tmp]
+            out[i, 4:] = t
+    return out.reshape(8 * n)
+
+
+def PCM_decode(ins, v):
+    inn = ins.reshape(len(ins) // 8, 8)
+    slot = np.array([0, 32, 64, 128, 256, 512, 1024, 2048])
+    step = np.array([2, 2, 4, 8, 16, 32, 64, 128])
+    out = np.zeros(len(ins) // 8)
+    for i in range(inn.shape[0]):
+        sgn = 2 * inn[i, 0] - 1
+        tmp = int(inn[i, 1] * 4 + inn[i, 2] * 2 + inn[i, 3])
+        st = slot[tmp]
+        dt = (inn[i, 4] * 8 + inn[i, 5] * 4 + inn[i, 6] * 2 + inn[i, 7]) * step[tmp] + 0.5 * step[tmp]
+        out[i] = sgn * (st + dt) / 4096 * v
+    return out
+
+~~~
+
+~~~py
+from chapter2_基础.soundBase import *
+from chapter6_语音编码.PCM import *
+
+plt.rcParams['font.sans-serif'] = ['SimHei']
+plt.rcParams['axes.unicode_minus'] = False
+
+data, fs = soundBase('C6_1_y.wav').audioread()
+
+sxx = np.array(list(map(int, data * 4096)))
+
+y = PCM_encode(sxx)
+
+yy = PCM_decode(y, 1)
+
+plt.subplot(3, 1, 1)
+plt.plot(data)
+plt.title('编码前')
+
+plt.subplot(3, 1, 2)
+plt.plot(yy)
+plt.title('解码后')
+
+plt.subplot(3, 1, 3)
+plt.plot(yy - data)
+plt.title('误差')
+
+plt.savefig('images/pcm.png')
+plt.close()
+
+~~~
+
+![pcm](images/pcm.png)

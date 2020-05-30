@@ -1,0 +1,40 @@
+### 谱减法
+对于任何一帧信号$x_i(m)$做FFT变换后：
+$$X_i(k)=\sum_{m=1}^Nx_i(m)\exp(j\frac{2\pi mk}{N})$$
+
+对于$X_i(k)$的幅值为$|X_i(k)|$,角度为$X^i_{angle}(k)=\arctan[\frac{Im(X_i(k))}{Re(X_i(k))}]$,前导噪声段时长为IS,对应帧数为NIS,可以得到该噪声段的平均能量为：
+$$D(k)=\frac{1}{NIS}\sum_{i=1}^{NIS}|X_i(k)|^2$$
+
+谱减公式为：
+$$|\hat X_i(k)|^2=\left \{\begin{array}{ll}
+    |X_i(k)|^2-a\times D(k)& |X_i(k)|^2\geqslant a \times D(k)\\
+    b\times D(k)&|X_i(k)|^2< a \times D(k)
+\end{array} \right.$$
+
+其中，$a,b$是两个常数，$a$为过减因子，$b$为增益补偿因子。
+
+利用谱减后的幅值$|\hat X_i(k)|$,以及原先的相位角$X^i_{angle}(k)$，可以利用iFFT求出增强后的语音序列$\hat x_i(m)$。
+
+### Boll改进谱减法
+（一）谱减公式改为：
+$$|\hat X_i(k)|^{\gamma}=\left \{\begin{array}{ll}
+    |X_i(k)|^{\gamma}-a\times D(k)& |X_i(k)|^{\gamma}\geqslant a \times D(k)\\
+    b\times D(k)&|X_i(k)|^{\gamma}< a \times D(k)
+\end{array} \right.$$
+
+$$D(k)=\frac{1}{NIS}\sum_{i=1}^{NIS}|X_i(k)|^{\gamma}$$
+
+当$\gamma=1$，算法相当于用谱幅值做谱减法，当$\gamma=2$，算法相当于用功率谱幅值做谱减法。
+
+（二）计算平均谱值代替
+$$Y_i(k)=\frac{1}{2M+1}\sum_{j=-M}^MX_{i+j}(k)$$
+
+使用$Y_i(k)$代替$X_i(k)$，可以得到较小的谱估算方差。
+
+（三）减小噪声残留
+$$D_i(k)=\left \{\begin{array}{ll}
+    D_i(k)& D_i(k)\geqslant \max|N_R(k)|\\
+    \min\{D_j(k)|j \in [i-1,i,i+1]\}&D_i(k)< \max|N_R(k)|
+\end{array} \right.$$
+
+其中，$\max|N_R(k)|$为最大残余噪声。
