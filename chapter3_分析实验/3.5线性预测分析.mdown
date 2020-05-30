@@ -1,0 +1,252 @@
+一个简化的语音模型可以看做一个数字滤波器：
+$$H(z)=\frac{S(z)}{U(z)}=\frac{G}{1-\sum\limits_{i=1}^pa_iz_i^{-1}}$$
+
+这里$s(n)$和$u(n)$之间的关系可以用差分方程来表示：
+$$s(n)=\sum\limits_{i=1}^pa_is(n-1)+Gu(n)$$
+
+系统$\hat s(n)=\sum\limits_{i=1}^pa_is(n-1)$是线性预测器。$\hat s(n)$是$s(n)$的估计值。由过去的$p$个值线性组合得到的。$a_i(i=1,2,...,p)$是线性预测系数，预测误差表示为：
+$$e(n)=s(n)-\hat s(n)=s(n)-\sum\limits_{i=1}^pa_is(n-i)$$
+
+预测的二次方误差为：
+$$E=\sum_ne^2(n)=\sum_n[s(n)-\hat s(n)]^2=\sum_n[s(n)-\sum\limits_{i=1}^pa_is(n-i)]^2$$
+
+显然预测最准确的话，那么误差$E$要最小。要让参数$a_i$的取值让$E$最小化，要:
+$$\frac{\partial E}{\partial a_j}=0,(1\leqslant j \leqslant p)$$
+
+$$\begin{array}{ll}
+\frac{\partial E}{\partial a_j}&=\{\sum_n[s(n)-\sum\limits_{i=1}^pa_is(n-i)]^2\}'\\
+&=\sum_n\{2(s(n)-\sum\limits_{i=1}^pa_is(n-i))[s(n)-\sum\limits_{i=1}^pa_is(n-i)]'\}\\
+&=\sum_n\{2(s(n)-\sum\limits_{i=1}^pa_is(n-i))(1-s(n-j))\}\\
+&=2\sum_n\{s(n)-\sum_{i=1}^pa_ix(n-i)+s(n)s(n-j)-\sum\limits_{i=1}^pa_is(n-i)s(n-j)\}\\
+&=2\sum_ns(n)s(n-j)-2\sum\limits_{i=1}^pa_i\sum_ns(n-i)s(n-j)
+\end{array}$$
+
+如果定义：$\phi(j,i)=\sum_ns(n-i)s(n-j)$，那么$\frac{\partial E}{\partial a_j}=0$就可以写成：
+$$\phi(j,0)=\sum\limits_{i=1}^pa_i\phi(j,i) \tag{求解方程}$$
+
+带入误差方程可以有：
+$$E=\phi(0,0)-\sum_{i=1}^pa_i\phi(0,i)\tag{最小误差方程}$$
+
+所以，最小误差是由一个固定分量$\phi(0,0)$和依赖于预测系数的分量$\sum_{i=1}^pa_i\phi(0,i)$组成的。
+
+## 线性预测的自相关解法
+自相关解法是$s(n)$在$0 \leqslant n \leqslant N-1$以外的值都是零，等同于假设了$s(n)$经过了有限长度的窗，就可以用p个方程来解有p个未知数的方程组了。定义：
+$$r(j)=\sum_{n=0}^{N-1}s(n)s(n-j),1\leqslant j \leqslant p$$
+
+那么$\phi(j,i)$等效于$r(j-i)$,由于自相关是偶函数，所以有：
+$$\phi(j,i)=r(|j-i|)$$
+
+所以求解方程为：
+$$r(j)=\sum_{i=1}^pa_ir(|j-i|),1\leqslant j \leqslant p$$
+
+最小误差方程为：
+$$E=r(0)-\sum_{i=1}^pa_ir(i)$$
+
+将$\phi(j,i)=r(|j-i|)$展开有：
+$$\begin{bmatrix}r(0)&r(1)&r(2)&...&r(p-1)\\r(1)&r(0)&r(1)&...&r(p-2)\\r(2)&r(1)&r(0)&...&r(p-3)\\...&...&...&...&...\\r(p-1)&r(p-2)&r(p-3)&...&r(0)\end{bmatrix}\begin{bmatrix}a_1\\a_2\\a_3\\...\\a_p\end{bmatrix}=\begin{bmatrix}r(1)\\r(2)\\r(3)\\...\\r(p)\end{bmatrix}$$
+
+这种沿着主对角对称，并任何一条与主对角线平行的线上的值都相等的矩阵叫Toeplitz矩阵，这种方程叫Yule-Walker方程。可以采用递归方法求解。
+计算的步骤：
+ - 当$i=0$时，$E_0=r(0),a_0=1$;
+ - 对于第$i$次递归($i=1,2,...,p$):
+  $$k_i=\frac{1}{E_{i-1}}[r(i)-\sum_{j=1}^{i-1}a_j^{i-1}r(j-i)]$$
+
+  $$ia_i^{(i)}=k_i$$
+  
+  对于$j=1$到$i-1$:
+  $$a_j^{(i)}=a_j^{i-1}-k_ia_{i-j}^{(i-1)}$$
+
+  $$E_i=(1-k_i^2)E_{i-1}$$
+ 
+ - 增益G为：
+
+$$G=\sqrt{E_p}$$
+
+递归得到：
+$$E_p=r(0)\prod_{i=1}^p(1-k_i^2)$$
+
+## 其他参数
+
+#### 预测误差及其自相关
+预测误差为：
+$$e(n)=s(n)-\sum_{i=1}^pa_is(n-i)$$
+
+预测误差的自相关为：
+$$R_e(m)=\sum_{n=0}^{N-1-m}e(n)e(n+m)$$
+
+#### 反射系数和声道面积
+反射系数$k_i$在低速率语音编码/语音合成/语音识别和说话人识别等许多领域都是非常重要的特征。
+$$\begin{array}{ll}
+    a_j^{(i)}=a_j^{i-1}-k_ia_{i-j}^{(i-1)}\\
+    a_{i-j}^{(i)}=a_{i-j}^{i-1}-k_ia_{j}^{(i-1)}
+\end{array}$$
+
+可以解出：
+$$a_{j}^{i-1}=(a_j^{(i)}+a_j^{(i)}a_{i-j}^{(i)})/(1-k_i^2)$$
+
+由线性预测系数可以反解出反射系数。声道可以被模拟成一系列截面积不等的无损声道级联。反射系数反应了声波在各管道界面处的反射量：
+$$k_i=\frac{A_{i+1}-A_i}{A_{i+1}+A_i}$$
+
+同样可以反解出：
+$$\frac{A_i}{A_{i+1}}=\frac{1-k_i}{1+k_i}$$
+
+### 线性预测频谱
+一帧信号$x(n)$模型可以转化为一个$p$阶的线性预测模型。当$z=e^{jw}$时，能得到线性预测系数的频谱：
+$$H(e^{jw})=\frac{1}{1-\sum_{n=1}^pa_nz^{-jwn}}$$
+
+不考虑激励和辐射时，$H(e^{jw})$就是$X(e^{jw})$的包络线。
+
+### 线性预测倒谱
+语音信号的倒谱可以通过对信号做傅里叶变换，取模的对数，再求傅里叶逆变换得到。由于频率响应$H(e^{iω})$反映声道的频率响应和被分析信号的谱包络，因此用$\log|H(e^{iw})|$做傅里叶拟变换得到线性预测倒谱系数（Linear Prediction Cepstrum Coeffient, LPCC）。
+
+更根据同态处理法有：$\hat H(z)=\log H(z)$,$\hat H(z)$可以写成级数展开的形式：
+$$\hat H(z)=\sum_{n=1}^{+\infin}\hat h(n)z^{-n}$$
+
+对上式同时对$z^{-1}$求导：
+$$\frac{\partial }{\partial z^{-1}}\frac{1}{1-\sum\limits_{i=1}^pa_iz^{-i}}=\frac{\partial }{\partial z^{-1}}\sum\limits_{n=1}^{+\infin}\hat h(n)z^{-n}$$
+
+解为：
+$$(1-\sum\limits_{i=1}^pa_iz^{-1})\sum\limits_{n=1}^{+\infin}n\hat h(n)z^{-n+1}=\sum\limits_{n=1}^{+\infin}ia_iz^{-i+1}$$
+
+令上市两边的$z$各次幂的系数分别相等，得到$\hat h(n)$和$a_i$之间的递推关系：
+$$\left \{\begin{array}{ll}
+    \hat h(1)=a_1&\\
+    \hat h(n)=a_n+\sum_{i=1}^{n-1}(1-\frac{i}{n})a_i\hat h(n-i)&1<n\leqslant p\\
+    \hat h(n)=\sum_{i=1}^{n-1}(1-\frac{i}{n})a_i\hat h(n-i)&n>p
+\end{array}\right.$$
+
+~~~py
+# lpc.py
+import numpy as np
+
+
+def lpc_coeff(s, p):
+    """
+    :param s: 一帧数据
+    :param p: 线性预测的阶数
+    :return:
+    """
+    n = len(s)
+    # 计算自相关函数
+    Rp = np.zeros(p)
+    for i in range(p):
+        Rp[i] = np.sum(np.multiply(s[i + 1:n], s[:n - i - 1]))
+    Rp0 = np.matmul(s, s.T)
+    Ep = np.zeros((p, 1))
+    k = np.zeros((p, 1))
+    a = np.zeros((p, p))
+    # 处理i=0的情况
+    Ep0 = Rp0
+    k[0] = Rp[0] / Rp0
+    a[0, 0] = k[0]
+    Ep[0] = (1 - k[0] * k[0]) * Ep0
+    # i=1开始，递归计算
+    if p > 1:
+        for i in range(1, p):
+            k[i] = (Rp[i] - np.sum(np.multiply(a[:i, i - 1], Rp[i - 1::-1]))) / Ep[i - 1]
+            a[i, i] = k[i]
+            Ep[i] = (1 - k[i] * k[i]) * Ep[i - 1]
+            for j in range(i - 1, -1, -1):
+                a[j, i] = a[j, i - 1] - k[i] * a[i - j - 1, i - 1]
+    ar = np.zeros(p + 1)
+    ar[0] = 1
+    ar[1:] = -a[:, p - 1]
+    G = np.sqrt(Ep[p - 1])
+    return ar, G
+
+def lpcff(ar, npp=None):
+    """
+    :param ar: 线性预测系数
+    :param npp: FFT阶数
+    :return:
+    """
+    p1 = ar.shape[0]
+    if npp is None:
+        npp = p1 - 1
+    ff = 1 / np.fft.fft(ar, 2 * npp + 2)
+    return ff[:len(ff) // 2]
+
+def lpc_lpccm(ar, n_lpc, n_lpcc):
+    lpcc = np.zeros(n_lpcc)
+    lpcc[0] = ar[0]  # 计算n=1的lpcc
+    for n in range(1, n_lpc):  # 计算n=2,,p的lpcc
+        lpcc[n] = ar[n]
+        for l in range(n - 1):
+            lpcc[n] += ar[l] * lpcc[n - 1] * (n - l) / n
+    for n in range(n_lpc, n_lpcc):  # 计算n>p的lpcc
+        lpcc[n] = 0
+        for l in range(n_lpc):
+            lpcc[n] += ar[l] * lpcc[n - 1] * (n - l) / n
+    return -lpcc
+~~~
+
+~~~py
+from chapter2_基础.soundBase import *
+from chapter3_分析实验.lpc import *
+from scipy.signal import lfilter
+
+data, fs = soundBase('C3_5_y.wav').audioread()
+L = 240
+x = data[8000:8000 + L]
+x = (x - np.mean(x)) / np.std(x)
+p = 12
+ar, G = lpc_coeff(x, p)
+b = np.zeros(p + 1)
+b[0] = 1
+b[1:] = -ar[1:]
+est_x = lfilter(b, 1, x)
+plt.subplot(2, 1, 1)
+plt.plot(x)
+plt.subplot(2, 1, 2)
+plt.plot(est_x)
+plt.savefig('images/lpc.png')
+plt.close()
+
+~~~
+
+![lpc](images/lpc.png)
+
+~~~py
+from chapter2_基础.soundBase import *
+from chapter3_分析实验.lpc import *
+
+data, fs = soundBase('C3_5_y.wav').audioread()
+L = 240
+p = 12
+x = data[8000:8000 + L]
+ar, G = lpc_coeff(x, p)
+nfft = 512
+W2 = nfft // 2
+m = np.array([i for i in range(W2)])
+Y = np.fft.fft(x, nfft)
+Y1 = lpcff(ar, W2)
+plt.subplot(2, 1, 1)
+plt.plot(x)
+plt.subplot(2, 1, 2)
+plt.plot(m, 20 * np.log(np.abs(Y[m])))
+plt.plot(m, 20 * np.log(np.abs(Y1[m])))
+plt.savefig('images/lpcff.png')
+plt.close()
+~~~
+![lpcff](images/lpcff.png)
+
+~~~py
+from chapter2_基础.soundBase import *
+from chapter3_分析实验.lpc import *
+from chapter3_分析实验.倒谱计算 import *
+
+data, fs = soundBase('C3_5_y.wav').audioread()
+L = 240
+p = 12
+x = data[8000:8000 + L]
+ar, G = lpc_coeff(x, p)
+
+lpcc1 = lpc_lpccm(ar, p, p)
+lpcc2 = rcceps(ar)
+plt.subplot(2, 1, 1)
+plt.plot(lpcc1)
+plt.subplot(2, 1, 2)
+plt.plot(lpcc2)
+plt.show()
+
+~~~

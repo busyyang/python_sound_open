@@ -1,0 +1,71 @@
+## 信号相加
+读取了语音信号之后可以看到是一个一维数组，可以直接通过一维数组（列表）的形式进行操作。在两个序列长度不一样时候，可以在短的一个序列后补零。
+~~~py
+class soundBase:
+    def __init__(self, path):
+        self.path = path
+
+    def sound_add(self, data1, data2):
+        if len(data1) < len(data2):
+            tmp = np.zeros([len(data2)])
+            for i in range(len(data1)):
+                tmp[i] += data1[i]
+            return tmp + data2
+        elif len(data1) > len(data2):
+            tmp = np.zeros([len(data1)])
+            for i in range(len(data2)):
+                tmp[i] += data2[i]
+            return tmp + data1
+        else:
+            return data1 + data2
+~~~
+
+## 卷积
+卷积是一个常用的计算，两个序列$x_1,x_2$的卷积表达式为：
+$$y(n)=\sum\limits_{k=-\infty}^{\infty}x_1(k)x_2(n-k)$$
+
+对于离散信号来说：
+$$y(n)=\sum\limits_{k=0}^{N}x_1(k)x_2(n-k)$$
+
+计算方式可以参考[一维信号的卷积认识](https://blog.csdn.net/sinat_18131557/article/details/103432004)
+
+## 采样频率的转化
+采样频率的转化是为了做升采样和降采样。降采样是对序列$x(n)$间隔$D-1$个点进行抽取：
+$$x_D(m)=x(Dm)\tag{抽取}$$
+
+其中$D$为正整数。为了米面抽取序列后频谱混叠，通常在抽取前将信号通过一个抗混叠滤波器。
+内插就是在原序列的样本点之间插入$I-1$个值，原始序列为$x(n)$,内插后的序列为$x_I(m)$
+$$x_I(m)=\left\{\begin{array}{ll}
+    x(\frac{m}{I})&,m=0,±I,±2I...\\
+    0&,others
+\end{array}\right.\tag{内插}$$
+
+内插之后，通过低通滤波器，移植混叠信号。
+
+在matlab中都可以通过`resample`函数来进行，通过配置参数的不同即可。在python的实现中，利用`audiowrite`的参数`fs`来实现，在读取信号的时候，输出fs,然后对fs进行变化后写入。
+~~~py
+class soundBase:
+    def __init__(self, path):
+        self.path = path
+
+    def audiowrite(self, data, fs, binary=True, channel=1, path=[]):
+        if binary:
+            wf = wave.open(self.path, 'wb')
+            wf.setframerate(fs)
+            wf.setnchannels(channel)
+            wf.setsampwidth(2)
+            wf.writeframes(b''.join(data))
+        else:
+            if len(path) == 0:
+                path = self.path
+            wavfile.write(path, fs, data)
+
+    def audioread(self):
+        fs, data = wavfile.read(self.path)
+        return data, fs
+
+sb = soundBase('C2_2_y.wav')
+data, fs = sb.audioread()
+sb_cc = soundBase('C2_2_y_conved_2.wav')
+sb_c.audiowrite(data, fs * 2)
+~~~

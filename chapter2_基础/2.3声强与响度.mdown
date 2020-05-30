@@ -1,0 +1,111 @@
+## 声压
+声压是定量描述声波的最基本的物理量，它是由于声扰动产生的逾量压强，是空间位置和时间的函数。由于声压的测量比较易于实现，而且通过声压的测量也可以间接求得质点振速等其他声学参量，因此，声压已成为人们最为普遍采用的定量描述声披性质的物理量。
+### 有效声压
+通常讲的卢压指的是有效声压，即在一定时间间隔内将瞬时声压对时间求方均根值所得。设语音长度度为$T$， 离散点数为$N$， 则有效声压的计算公式为
+$$P_e=\sqrt{\frac{1}{T}\sum\limits_{n=1}^Nx^2\Delta t}=\sqrt{\frac{1}{N\Delta t}\sum\limits_{n=1}^Nx^2\Delta t}=\sqrt{\frac{1}{N}\sum\limits_{n=1}^Nx^2}$$
+
+
+
+其中$x$表示采样点。只要保证所取的点数$N$足够大，即可保证计算的准确性。用于计算声压级值的语音帧长一般为20ms、50ms、100ms、200ms以及500ms。计算的结果是一个序列。
+
+~~~py
+class soundBase:
+    def __init__(self, path):
+        self.path = path
+
+    def audioread(self, formater='sample'):
+        """
+        读取语音文件
+        2020-2-26   Jie Y.  Init
+        :param formater: 获取数据的格式，为sample时，数据为float32的，[-1,1]，同matlab同名函数. 否则为文件本身的数据格式
+        :return: 语音数据data, 采样率fs
+        """
+        fs, data = wavfile.read(self.path)
+        if formater == 'sample':
+            data, _ = librosa.load(self.path, sr=fs)
+        return data, fs
+
+    def SPL(self, data, fs, frameLen=100, isplot=True):
+        """
+        计算声压曲线
+        2020-2-26   Jie Y.  Init
+        :param data: 语音信号数据
+        :param fs: 采样率
+        :param frameLen: 计算声压的时间长度(ms单位)
+        :param isplot: 是否绘图，默认是
+        :return: 返回声压列表spls
+        """
+
+        def spl_cal(s, fs, frameLen):
+            """
+            根据数学公式计算单个声压值
+            $y=\sqrt(\sum_{i=1}^Nx^2(i))$
+            2020-2-26   Jie Y. Init
+            :param s: 输入数据
+            :param fs: 采样率
+            :param frameLen: 计算声压的时间长度(ms单位)
+            :return: 单个声压数值
+            """
+            l = len(s)
+            M = frameLen * fs / 1000
+            if not l == M:
+                exit('输入信号长度与所定义帧长不等！')
+            # 计算有效声压
+            pp = 0
+            for i in range(int(M)):
+                pp += (s[i] * s[i])
+            pa = np.sqrt(pp / M)
+            p0 = 2e-5
+            spl = 20 * np.log10(pa / p0)
+            return spl
+
+        length = len(data)
+        M = fs * frameLen // 1000
+        m = length % M
+        if not m < M // 2:
+            # 最后一帧长度不小于M的一半
+            data = np.hstack((data, np.zeros(M - m)))
+        else:
+            # 最后一帧长度小于M的一半
+            data = data[:M * (length // M)]
+        spls = np.zeros(len(data) // M)
+        for i in range(length // M - 1):
+            s = data[i * M:(i + 1) * M]
+            spls[i] = spl_cal(s, fs, frameLen)
+
+        if isplot:
+            plt.subplot(211)
+            plt.plot(data)
+            plt.subplot(212)
+            plt.step([i for i in range(len(spls))], spls)
+            plt.show()
+        return spls
+
+
+sb = soundBase('C2_3_y.wav')
+data, fs = sb.audioread()
+sb.SPL(data, fs)
+~~~
+### 声压级
+声音的有效声压与基准声压之比，取以10为底的对数，再乘以20，即为声压级，通常以符号$L_p$表示，单位为dB。
+$$L_p=20\lg\frac{P_e}{p_{ref}}(dB)$$
+
+其中，$P_e$为待测声压的有效值，$P_{ref}$为参考声压，在空气中一般取$2\times 10^{-5}Pa$。
+
+
+
+## 声强
+在物理学巾，声波在单位时间内作用在与其传递方向垂直的单位面积上的能量称为声强。日常生活中能听到的声音其强度范围很大，最大和最小之间可达$10^{12}$倍。
+### 声强级
+
+用声强的物理学单位表示声音强弱很不方便。当人耳听到两个强度不同的声音时，感觉的大小大致上与两个卢强比值的对数成比例。因此，用对数尺度来表示声音强度的等级，其单位为分贝(dB) 。
+$$L_I=10\lg (I/I_0)(dB)$$
+
+在声学中，$I_0=1\times 10^{-12}W/m^2$。
+### 声压与声强的关系
+对于球面波和平面波，声压与声强的关系是：
+$$I=P^2/(\rho·c)$$
+其中，$\rho$为空气密度，$c$为声速，在标准大气压和20摄氏度的环境下，$\rho·c=408 Pa·s/m$，这个数值叫国际单位值，也叫瑞丽，称为空气对声波的特性阻抗。
+
+## 响度
+响度描述的是声音的响亮程度，表示人耳对声音的主观感受，其计量单位是宋。定义为声压级为40dB的1 kHz纯音的响度为1 Son (宋) 。人耳对声音的感觉，不仅和声压有关，还和频率有关。声压级相同，频率不同的声音，听起来响亮程度也不同。如空压机与电锯，同是100dB声压级的噪声，昕起来电锯声要响得多。按人耳对声音的感觉特性，依据卢压和频率定出人对声音的主观音响感觉量，称为响度级，单位为方，符号phon。根据国际协议规定，OdB声级的1000 Hz纯音的晌度级定义为0 phon。其他频率声音的声级与响度级的对应关系，要从等响度曲线才能查出。

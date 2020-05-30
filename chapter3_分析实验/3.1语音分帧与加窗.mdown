@@ -1,0 +1,124 @@
+一般来讲，语音信号的采样率是挺高的，而且认为语音信号在一定时间段的基本特性不会发生较大的变化，具有一定的短时平稳性。进行“短时分析”就行将信号分解成一段一段地来处理，每一段就叫一帧，大约10~30ms，也就是一秒钟大约33~100帧，对于通常10K的采样率来说，这样也能有一定的信息存在。分帧通常有一定的交叠部分，就是帧移。帧移与帧长的比通常为0~1/2。
+
+分帧就是通过加窗函数实现的，假设原始信号为$s(n)$，窗函数为$w(n)$，那么分帧就是$s_w(n)=s(n)*w(n)$，窗函数需要满足1. 窗口两端不引起急剧变化，应该平滑过渡到0，2.在频域有较宽的3dB贷款以及较大的边带最大值。窗口的长度一般为10~20ms。有三种常见的窗函数为：
+ - 矩形窗
+$$w(n)=\left\{\begin{array}{ll}
+    1&,0\leqslant n \leqslant N-1\\
+    0&,others
+\end{array}\right. \tag{矩形窗}$$
+
+ - 汉明窗
+
+$$w(n)=\left\{\begin{array}{ll}
+    0.54-0.46\cos[2\pi n/(N-1)]&,0\leqslant n \leqslant N-1\\
+    0&,others
+\end{array}\right.\tag{汉明窗}$$
+
+ - 海宁窗
+
+$$w(n)=\left\{\begin{array}{ll}
+    0.5(1-\cos(2\pi n/(N-1)))&,0\leqslant n \leqslant N-1\\
+    0&,others
+\end{array}\right.\tag{汉明窗}$$
+
+其图形如下：
+![.\images\window.png](images/window.png)
+
+~~~py
+import matplotlib.pyplot as plt
+import numpy as np
+
+plt.rcParams['font.family'] = ['sans-serif']
+plt.rcParams['font.sans-serif'] = ['SimHei']
+
+N = 32
+nn = [i for i in range(N)]
+plt.subplot(3, 1, 1)
+plt.stem(np.ones(N))
+plt.title('(a)矩形窗')
+
+w = 0.54 - 0.46 * np.cos(np.multiply(nn, 2 * np.pi) / (N - 1))
+plt.subplot(3, 1, 2)
+plt.stem(w)
+plt.title('(b)汉明窗')
+
+w = 0.5 * (1 - np.cos(np.multiply(nn, 2 * np.pi) / (N - 1)))
+plt.subplot(3, 1, 3)
+plt.stem(w)
+plt.title('(c)海宁窗')
+# plt.show()
+plt.savefig('images/window.png')
+plt.close()
+~~~
+
+分帧操作，相当于将信号分解为若干个信号片段，并将片段与窗函数进行对应元素的乘法。
+~~~py
+from scipy.io import wavfile
+import numpy as np
+import matplotlib.pyplot as plt
+
+plt.rcParams['font.family'] = ['sans-serif']
+plt.rcParams['font.sans-serif'] = ['SimHei']
+plt.rcParams['axes.unicode_minus'] = False
+
+
+def enframe(x, win, inc=None):
+    nx = len(x)
+    if isinstance(win, list):
+        nwin = len(win)
+        nlen = nwin  # 帧长=窗长
+    elif isinstance(win, int):
+        nwin = 1
+        nlen = win  # 设置为帧长
+    if inc is None:
+        inc = nlen
+    nf = (nx - nlen + inc) // inc
+    frameout = np.zeros((nf, nlen))
+    indf = np.multiply(inc, np.array([i for i in range(nf)]))
+    for i in range(nf):
+        frameout[i, :] = x[indf[i]:indf[i] + nlen]
+    if isinstance(win, list):
+        frameout = np.multiply(frameout, np.array(win))
+    return frameout
+
+
+fs, data = wavfile.read('C3_1_y.wav')
+inc = 100
+wlen = 200
+en = enframe(data, wlen, inc)
+i = input('其实帧(i):')
+i = int(i)
+tlabel = i
+plt.subplot(4, 1, 1)
+x = [i for i in range((tlabel - 1) * inc, (tlabel - 1) * inc + wlen)]
+plt.plot(x, en[tlabel, :])
+plt.xlim([(i - 1) * inc + 1, (i + 2) * inc + wlen])
+plt.title('(a)当前波形帧号{}'.format(tlabel))
+
+plt.subplot(4, 1, 2)
+x = [i for i in range((tlabel + 1 - 1) * inc, (tlabel + 1 - 1) * inc + wlen)]
+plt.plot(x, en[i + 1, :])
+plt.xlim([(i - 1) * inc + 1, (i + 2) * inc + wlen])
+plt.title('(b)当前波形帧号{}'.format(tlabel + 1))
+
+plt.subplot(4, 1, 3)
+x = [i for i in range((tlabel + 2 - 1) * inc, (tlabel + 2 - 1) * inc + wlen)]
+plt.plot(x, en[i + 2, :])
+plt.xlim([(i - 1) * inc + 1, (i + 2) * inc + wlen])
+plt.title('(c)当前波形帧号{}'.format(tlabel + 2))
+
+plt.subplot(4, 1, 4)
+x = [i for i in range((tlabel + 3 - 1) * inc, (tlabel + 3 - 1) * inc + wlen)]
+plt.plot(x, en[i + 3, :])
+plt.xlim([(i - 1) * inc + 1, (i + 2) * inc + wlen])
+plt.title('(d)当前波形帧号{}'.format(tlabel + 3))
+
+# plt.show()
+plt.savefig('images/en.png')
+plt.close()
+
+~~~
+
+![分帧](images/en.png)
+
+另外，也可以直接使用`numpy.hanning(N)`来获得窗函数。其中N就是点数。

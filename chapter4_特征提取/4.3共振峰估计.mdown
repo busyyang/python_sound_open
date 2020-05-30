@@ -1,0 +1,256 @@
+声道可以被看成一根具有非均匀截面的声管，在发音时将起共鸣器的作用。当声门处准周期脉冲激励进入声道时会引起共振特性，产生一组共振频率，这一组共振频率称为共振峰频率或简称为共振峰。共振峰参数包括共振峰频率、频带宽度和幅值，共振峰信息包含在语音频谱的包络中。因此共振峰参数提取的关键是估计语音频谱包络，并认为谱包络中的最大值就是共振峰。利用语音频谱傅里叶变换相应的低频部分进行逆变换，就可以得到语音频谱的包络曲线。依据频谱包络线各峰值能量的大小确定出第1-4共振峰.
+
+在经典的语音信号模型中，共振峰等效为声道传输函数的复数极点对。对平均长度约为17cm声道(男性) ，在3kHz范围内大致包含三个或四个共振峰，而在5 kHz范围内包含四个或五个共振峰。高于5kHz的语音信号，能量很小。浊音信号最主要的是前三个共振峰。因此一切共振峰估计都是直接或间接地对频谱包络进行考察，关键是估计语音频谱包络，并认为谱包络中的最大值就是共振峰。
+
+### 共振峰估计预处理
+在估计之前需要进行预加重，对信号进行高频提升，还原声门的信号。
+$$s'(n)=s(n)-a·s(n-1)$$
+
+预加重有两个作用：
+ - 增加一个零点：抵消声门脉冲引起的高端频谱幅度下跌，使信号频谱变得平坦且各共振峰幅度相接近;语音中只剩下声道部分的影响，所提取的特征更加符合原声道的模型。
+ - 会削减低频信息，使有些基频幅值变大时，通过预加重后降低基频对共振峰检测的干扰，有利于共振峰的检测;同时减少频谱的动态范围。
+
+另外，共振峰检测一般是分析韵母部分，所以还需要进行端点检测。可以使用基音周期检测相同的端点检测方法。
+
+### 倒谱法共振峰估计
+
+倒谱法共振峰估计的算法过程为：
+ - 对语音信号$x(i)$进行预加重，并进行加窗，分帧，FFT处理
+  $$X_i(k)=\sum_{n=1}^Nx_i(n)e^{-\frac{2\pi kn j}{N}}$$
+ - 取$X_i(k)$的倒谱：
+  $$\hat x_i(n)=\frac{1}{N}\sum_{k=1}^N\lg|X_i(k)|e^{-\frac{2\pi kn j}{N}}$$
+ - 给倒谱信号加窗得：$h_i(n)=\hat x_i(n)\times h(n)$,这里的窗函数和倒谱的分辨率有关（和采样率和FFT长度有关）：
+  $$h(n)=\left \{\begin{array}{lc}
+      1&n\leqslant n_0-1 \&n\geqslant N-n_0+1\\
+      0& n_0-1<n<N-n_0+1
+  \end{array}\right.,n\in[0,N-1]$$
+ - 求$h_i(n)$的包络线：$H_i(k)=\sum\limits_{n=1}^{N}h_i(n)e^{-\frac{2\pi kn j}{N}}$
+ - 在包络线张寻找极大值，获得相应共振峰参数。
+
+### LPC法共振峰估计
+简化的语音产生模型是将辐射、声道以及声门激励的全部效应简化为一个时变的数字滤波器来等效，其传递函数为
+$$H(z)=\frac{S(z)}{U(z)}=\frac{G}{1-\sum\limits_{i=1}^pa_iz_i^{-1}}$$
+
+令$z^{-1}=\exp(-j2\pi f/f_s)$，则功率谱$P(f)$为：
+$$P(f)=|H(f)|^2=\frac{G^2}{|1-\sum\limits_{i=1}^pa_i\exp(-j2\pi if/f_s)|^2}$$
+
+利用FFT方法可对任意频率求得其功率谱幅值响应，并从幅值响应中找到共振峰，相应的求解方法有两种:抛物线内插法和线性预测系数求复数根法。
+
+#### 抛物线内插法
+
+在任意共振峰频率$F_i$的局部峰值频率$m\Delta f$($\Delta f$为谱图的频率间隔)，以及邻近的两个频率点$(m-1)\Delta f$,$(m+1)\Delta f$，以及他们的幅值分别为$H(m-1),H(m),H(m+1)$,可以用二次方程$a\lambda^2+b\lambda+c$来计算，求出更精确的中心频率$F_i$和带宽$B_i$。
+为了方便计算，令$m\Delta f$处为零，对应于$\Delta f,0,+\Delta f$处的功率谱分别为$H(m-1),H(m),H(m+1)$,由$H=a\lambda^2+b\lambda+c$有：
+$$\left \{\begin{array}{ll}
+    H(m-1)=a\Delta^2-b\Delta+c\\
+    H(m)=c\\
+    H(m+1)=a\Delta^2+b\Delta+c
+\end{array}\right.$$
+
+假设$\Delta f=1$,则计算系数为：
+$$\left \{\begin{array}{ll}
+a=\frac{H(m-1)+H(m+1)}{2}-H(m)\\
+b=\frac{H(m-1)+H(m+1)}{2}\\
+c=H(m)
+\end{array}\right.$$
+
+极大值处中心频率为:$\lambda_{max}=-b/2a$,实际共振峰中心频率为：$F_i=\lambda_{max}\Delta f+m\Delta f$，中心频率对应的功率谱$H_p$为：
+$$H_p=a\lambda_p^2+b\lambda_p+c=-\frac{b^2}{4a}+c$$
+
+求带宽，就是在某个$\lambda$处，使得谱值为最大值的一半：
+$$\frac{a\lambda^2+b\lambda+c}{H_p}=\frac{1}{2}$$
+
+解这个二次方程可以得到：
+$$\lambda _{root}=\frac{-b±\sqrt{b^2-4a(c-0.5H_p)}}{2a}$$
+
+实际带宽可以写成：
+$$B_i=2\lambda_b\Delta f$$
+
+其中$\lambda_b=-\frac{b^2-4a(c-0.5H_p)}{2a}$。
+
+#### 线性预测系数求根法
+
+预测误差滤波器表示为：
+$$A(z)=1-\sum_{i=1}^pa_iz^{-i}$$
+
+其多项式复根可以精确表示共振峰的中心频率与带宽。设$z_i=r_ie^{j\theta_i}$为任意复根，其共轭值$z^*_i=r_ie^{-j\theta_i}$也是根，设$z_i$对应的共振峰频率为$F_i$，3dB带宽为$B_i$，那么有：
+$$\left \{\begin{array}{ll}
+    2\pi F_i/f_s=\theta_i\\e^{-B_i\pi/f_s}-r_i
+\end{array} \right.$$
+
+所以：
+$$\left \{\begin{array}{ll}
+    F_i=\theta_if_s/2\pi\\B_i=-\ln r_i·f_s/\pi
+\end{array} \right.$$
+
+因为预测误差滤波器阶数p是预先设定的，所以复共辄对的数量最多是p/2。因为不属于共振峰的额外极点的带宽远大于共振峰带宽，所以比较容易剔除非共振峰极点。
+
+~~~py
+# 共振峰估计函数
+import numpy as np
+from chapter3_分析实验.timefeature import *
+from chapter3_分析实验.lpc import lpc_coeff
+
+
+def local_maxium(x):
+    """
+    求序列的极大值
+    :param x:
+    :return:
+    """
+    d = np.diff(x)
+    l_d = len(d)
+    maxium = []
+    loc = []
+    for i in range(l_d - 1):
+        if d[i] > 0 and d[i + 1] <= 0:
+            maxium.append(x[i + 1])
+            loc.append(i + 1)
+    return maxium, loc
+
+
+def Formant_Cepst(u, cepstL):
+    """
+    倒谱法共振峰估计函数
+    :param u:
+    :param cepstL:
+    :return:
+    """
+    wlen2 = len(u) // 2
+    U = np.log(np.abs(np.fft.fft(u)[:wlen2]))
+    Cepst = np.fft.ifft(U)
+    cepst = np.zeros(wlen2, dtype=np.complex)
+    cepst[:cepstL] = Cepst[:cepstL]
+    cepst[-cepstL + 1:] = Cepst[-cepstL + 1:]
+    spec = np.real(np.fft.fft(cepst))
+    val, loc = local_maxium(spec)
+    return val, loc, spec
+
+
+def Formant_Interpolation(u, p, fs):
+    """
+    插值法估计共振峰函数
+    :param u:
+    :param p:
+    :param fs:
+    :return:
+    """
+    ar, _ = lpc_coeff(u, p)
+    U = np.power(np.abs(np.fft.rfft(ar, 2 * 255)), -2)
+    df = fs / 512
+    val, loc = local_maxium(U)
+    ll = len(loc)
+    pp = np.zeros(ll)
+    F = np.zeros(ll)
+    Bw = np.zeros(ll)
+    for k in range(ll):
+        m = loc[k]
+        m1, m2 = m - 1, m + 1
+        p = val[k]
+        p1, p2 = U[m1], U[m2]
+        aa = (p1 + p2) / 2 - p
+        bb = (p2 - p1) / 2
+        cc = p
+        dm = -bb / 2 / aa
+        pp[k] = -bb * bb / 4 / aa + cc
+        m_new = m + dm
+        bf = -np.sqrt(bb * bb - 4 * aa * (cc - pp[k] / 2)) / aa
+        F[k] = (m_new - 1) * df
+        Bw[k] = bf * df
+    return F, Bw, pp, U, loc
+
+
+def Formant_Root(u, p, fs, n_frmnt):
+    """
+    LPC求根法的共振峰估计函数
+    :param u:
+    :param p:
+    :param fs:
+    :param n_frmnt:
+    :return:
+    """
+    ar, _ = lpc_coeff(u, p)
+    U = np.power(np.abs(np.fft.rfft(ar, 2 * 255)), -2)
+    const = fs / (2 * np.pi)
+    rts = np.roots(ar)
+    yf = []
+    Bw = []
+    for i in range(len(ar) - 1):
+        re = np.real(rts[i])
+        im = np.imag(rts[i])
+        fromn = const * np.arctan2(im, re)
+        bw = -2 * const * np.log(np.abs(rts[i]))
+        if fromn > 150 and bw < 700 and fromn < fs / 2:
+            yf.append(fromn)
+            Bw.append(bw)
+    return yf[:min(len(yf), n_frmnt)], Bw[:min(len(Bw), n_frmnt)], U
+
+~~~
+
+~~~py
+from chapter2_基础.soundBase import *
+from chapter4_特征提取.共振峰估计 import *
+from scipy.signal import lfilter
+
+plt.figure(figsize=(14, 12))
+
+data, fs = soundBase('C4_3_y.wav').audioread()
+# 预处理-预加重
+u = lfilter([1, -0.99], [1], data)
+
+cepstL = 6
+wlen = len(u)
+wlen2 = wlen // 2
+# 预处理-加窗
+u2 = np.multiply(u, np.hamming(wlen))
+# 预处理-FFT,取对数
+U_abs = np.log(np.abs(np.fft.fft(u2))[:wlen2])
+# 4.3.1
+freq = [i * fs / wlen for i in range(wlen2)]
+val, loc, spec = Formant_Cepst(u, cepstL)
+plt.subplot(4, 1, 1)
+plt.plot(freq, U_abs, 'k')
+plt.title('频谱')
+plt.subplot(4, 1, 2)
+plt.plot(freq, spec, 'k')
+plt.title('倒谱法共振峰估计')
+for i in range(len(loc)):
+    plt.subplot(4, 1, 2)
+    plt.plot([freq[loc[i]], freq[loc[i]]], [np.min(spec), spec[loc[i]]], '-.k')
+    plt.text(freq[loc[i]], spec[loc[i]], 'Freq={}'.format(int(freq[loc[i]])))
+# 4.3.2
+p = 12
+freq = [i * fs / 512 for i in range(256)]
+F, Bw, pp, U, loc = Formant_Interpolation(u, p, fs)
+
+plt.subplot(4, 1, 3)
+plt.plot(freq, U)
+plt.title('LPC内插法的共振峰估计')
+
+for i in range(len(Bw)):
+    plt.subplot(4, 1, 3)
+    plt.plot([freq[loc[i]], freq[loc[i]]], [np.min(U), U[loc[i]]], '-.k')
+    plt.text(freq[loc[i]], U[loc[i]], 'Freq={:.0f}\nHp={:.2f}\nBw={:.2f}'.format(F[i], pp[i], Bw[i]))
+
+# 4.3.3
+
+p = 12
+freq = [i * fs / 512 for i in range(256)]
+
+n_frmnt = 4
+F, Bw, U = Formant_Root(u, p, fs, n_frmnt)
+
+plt.subplot(4, 1, 4)
+plt.plot(freq, U)
+plt.title('LPC求根法的共振峰估计')
+
+for i in range(len(Bw)):
+    plt.subplot(4, 1, 4)
+    plt.plot([freq[loc[i]], freq[loc[i]]], [np.min(U), U[loc[i]]], '-.k')
+    plt.text(freq[loc[i]], U[loc[i]], 'Freq={:.0f}\nBw={:.2f}'.format(F[i], Bw[i]))
+
+plt.savefig('images/共振峰估计.png')
+plt.close()
+
+~~~
+
+![共振峰估计](images/共振峰估计.png)

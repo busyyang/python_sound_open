@@ -1,0 +1,170 @@
+
+## 语言录制
+~~~py
+import pyaudio
+import wave
+
+CHUNK = 1024
+FORMAT = pyaudio.paInt16
+CHANNELS = 2
+RATE = 16000
+RECORD_SECONDS = 2
+WAVE_OUTPUT_FILENAME = "Oldboy.wav"
+
+p = pyaudio.PyAudio()
+
+stream = p.open(format=FORMAT,
+                channels=CHANNELS,
+                rate=RATE,
+                input=True,
+                frames_per_buffer=CHUNK)
+
+print("start recording......")
+
+frames = []
+
+for i in range(0, int(RATE / CHUNK * RECORD_SECONDS)):
+    data = stream.read(CHUNK)
+    frames.append(data)
+
+print("end!")
+
+stream.stop_stream()
+stream.close()
+p.terminate()
+
+wf = wave.open(WAVE_OUTPUT_FILENAME, 'wb')
+wf.setnchannels(CHANNELS)
+wf.setsampwidth(p.get_sample_size(FORMAT))
+wf.setframerate(RATE)
+wf.writeframes(b''.join(frames))
+wf.close()
+~~~
+## 语音播放
+~~~py
+"""PyAudio Example: Play a WAVE file."""
+
+import pyaudio
+import wave
+
+CHUNK = 1024
+FILENAME = 'C2_1_y.wav'
+
+
+def player(filename=FILENAME):
+    wf = wave.open(filename, 'rb')
+
+    p = pyaudio.PyAudio()
+
+    stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
+                    channels=wf.getnchannels(),
+                    rate=wf.getframerate(),
+                    output=True)
+
+    data = wf.readframes(CHUNK)
+
+    while data != b'':
+        stream.write(data)
+        data = wf.readframes(CHUNK)
+
+    stream.stop_stream()
+    stream.close()
+
+    p.terminate()
+
+
+player(FILENAME)
+~~~
+
+## 读取并可视化
+~~~py
+import librosa  # 填充，默认频率为22050，可以改变频率
+from scipy.io import wavfile  # 原音无损
+import numpy as np
+import librosa.display
+import matplotlib.pyplot as plt
+fs, data = wavfile.read('C2_1_y.wav')  # 原始频率，原始数据
+print("长度 = {0} 秒".format(len(data) / fs))
+data1, sample_rate = librosa.load('C2_1_y.wav')
+print("长度 = {0} 秒".format(len(data1) / sample_rate))
+plt.figure(figsize=(14, 5))
+librosa.display.waveplot(data1, sample_rate)
+plt.show()
+~~~
+## 通用基础类
+~~~py
+import pyaudio
+import wave
+import librosa
+import librosa.display
+import matplotlib.pyplot as plt
+
+
+# from scipy.io import wavfile
+
+class soundBase:
+    def __init__(self, path):
+        self.path = path
+
+    def audiorecorder(self, len=2, formater=pyaudio.paInt16, rate=16000, frames_per_buffer=1024, channels=2):
+        p = pyaudio.PyAudio()
+        stream = p.open(format=formater, channels=channels, rate=rate, input=True, frames_per_buffer=frames_per_buffer)
+        print("start recording......")
+        frames = []
+        for i in range(0, int(rate / frames_per_buffer * len)):
+            data = stream.read(frames_per_buffer)
+            frames.append(data)
+        print("stop recording......")
+        stream.stop_stream()
+        stream.close()
+        p.terminate()
+        wf = wave.open(self.path, 'wb')
+        wf.setnchannels(channels)
+        wf.setsampwidth(p.get_sample_size(formater))
+        wf.setframerate(rate)
+        wf.writeframes(b''.join(frames))
+        wf.close()
+
+    def audioplayer(self, frames_per_buffer=1024):
+        wf = wave.open(self.path, 'rb')
+        p = pyaudio.PyAudio()
+        stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
+                        channels=wf.getnchannels(),
+                        rate=wf.getframerate(),
+                        output=True)
+        data = wf.readframes(frames_per_buffer)
+        while data != b'':
+            stream.write(data)
+            data = wf.readframes(frames_per_buffer)
+
+        stream.stop_stream()
+        stream.close()
+        p.terminate()
+
+    def audiowrite(self):
+        pass
+
+    def audioread(self):
+        data, sample_rate = librosa.load(self.path)
+        return data, sample_rate
+
+    def soundplot(self, data=[], sr=22050, size=(14, 5)):
+        if len(data) == 0:
+            data, _ = self.audioread()
+        plt.figure(figsize=size)
+        librosa.display.waveplot(data, sr=sr)
+        plt.show()
+
+
+sb = soundBase('C2_1_y.wav')
+data, sr = sb.audioread()
+sb.soundplot(data, sr)
+
+~~~
+## matlab版本更新后函数更新
+matlab老版本（如matlab2010）使用的函数名在新版本中已经取消了，对应关系如下：
+|旧|新|
+|--|--|
+|wavrecord|audiorecorder|
+|wavplay|audioplayer|
+|wavwrite|audioplayer|

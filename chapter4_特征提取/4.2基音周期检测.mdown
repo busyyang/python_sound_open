@@ -1,0 +1,274 @@
+人在发声时候，根据声带是否振动可以将语音信号分为清音和浊音。
+ - 浊音：有声语音，携带语言中大部分能量，在时域上有明显的周期性
+ - 清音：类似于白噪声，没明显周期性
+
+在发浊音时候，声门使声带产生张弛震荡式振动，产生准周期激励冲激串。这种声带振动的频率被称为基音频率，相应的周期就是基音周期。基音频率在很大程度上反应了个人的特征。比如，男性的基音频率范围在70-200Hz范围内，女性和小孩的基音频率在200-450Hz之间。
+
+基音周期的估计就是基音检测，基音检测的最终目的是为了找出和声带振动频率完全一致或者尽可能相同的轨迹曲线。目前基音检测可大致分为：非基于时间检测和基于事件检测（事件是指声门闭合）。
+
+非基于事件检测方法有：自相关函数法，平均幅值差函数法，倒谱法。计算量小，但是准确率不一定高。基于事件检测方法是指通过声门闭合的时刻开对基音周期进行估计，而不需要对语音信号进行短时平稳假设，主要有小波变换，Hilbert-Huang变换。由于这是时频域的处理方式，所以在时频域上都有较好的局部特性，检测精度高，但是计算量巨大。
+
+### 基音检测预处理
+由于语音信号的头部与尾部不具有声带震荡的周期性。为了提高检测准确率，基音检测通常要进行端点检测，但是基音检测的端点检测更加严格，这里采用能熵比的方式：
+$$EEF_n=\sqrt{1+|LE_n/H_n|}$$
+
+但是只用一个$T_1$门限做判断，判断能熵比是不是大于$T_1$，认为大于$T_1$的部分是有效段的候选值。再判断长度是不是大于最小长度$L_{min}$,一般认为$L_{min}=10$。
+
+为了减少共振峰的干扰，选择60-500Hz的预处理滤波器。由于语音信号对相位不敏感，可以考虑选择计算量小的椭圆IIR滤波器。
+
+### 倒谱法
+由于语音信号$x(i)$是由声门脉冲激励$u(i)$经声道响应$v(i)$滤波得到：
+$$x(i)=u(i)*v(i)$$
+
+并计算倒谱$\hat x(i),\hat u(i),\hat v(i)$有：
+$$\hat x(i)=\hat u(i)+\hat v(i)$$
+
+由于倒谱的$\hat u(i),\hat v(i)$是相对分离的，包含基音信息的脉冲倒谱可与声道响应倒谱分离，所以可以从倒谱域分离$\hat u(i)$后恢复出$u(i)$，从而求出基音周期。计算出倒谱后，在倒谱域中找到$P_{min},P_{max}$中的倒谱函数的最大值，对于的样本点数就是当前帧语音信号的基音周期$T_0(n)$,基音频率为$F_0(n)=f_s/T_0(n)$.
+
+### 短时自相关法
+
+先求出自相关函数，如果延迟量等于基音周期，那么两个信号具有最大类似性，或直接找出短时自相关函数两个最大值之间的距离作为基音周期的估计。
+
+### 线性预测法
+信号与线性预测之间的差为线性预测误差：
+$$e(n)=s(n)-\hat s(n)=s(n)-\sum\limits_{i=1}^pa_is(n-i)$$
+
+由于线性预测误差已经去除了共振峰的影响，其倒谱能领能把声道的影响减到最小，所以通过线性预测误差$e(m)$通过倒谱运算可可以提取出基音周期。
+
+~~~py
+from chapter3_分析实验.C3_1_y_1 import enframe
+from chapter3_分析实验.timefeature import *
+from chapter4_特征提取.end_detection import findSegment
+
+
+def pitch_vad(x, wnd, inc, T1, miniL=10):
+    """
+    使用能熵比检测基音，实际上就是语音分段
+    :param x:
+    :param wnd:
+    :param inc:
+    :param T1:
+    :param miniL:
+    :return:
+    """
+    y = enframe(x, wnd, inc)
+    fn = y.shape[0]
+    if isinstance(wnd, int):
+        wlen = wnd
+    else:
+        wlen = len(wnd)
+
+    Sp = np.abs(np.fft.fft(y, axis=1))
+    Sp = Sp[:, :wlen // 2 + 1]
+    Esum = np.sum(np.multiply(Sp, Sp), axis=1)
+    prob = Sp / np.sum(Sp, axis=1, keepdims=True)
+    H = -np.sum(np.multiply(prob, np.log10(prob + 1e-16)), axis=1)
+    H = np.where(H < 0.1, np.max(H), H)
+    Ef = np.sqrt(1 + np.abs(Esum / H))
+    Ef = Ef / np.max(Ef)
+
+    zseg = findSegment(np.where(Ef > T1)[0])
+    zsl = len(zseg.keys())
+    print(1)
+    SF = np.zeros(fn)
+    for k in range(zsl):
+        if zseg[k]['duration'] < miniL:
+            zseg = zseg.pop(k)
+        else:
+            SF[zseg[k]['start']:zseg[k]['end']] = 1
+    return zseg, len(zseg.keys()), SF, Ef
+
+
+def pitch_Ceps(x, wnd, inc, T1, fs, miniL=10):
+    """
+    倒谱法基音周期检测函数
+    :param x:
+    :param wnd:
+    :param inc:
+    :param T1:
+    :param fs:
+    :param miniL:
+    :return:
+    """
+    y = enframe(x, wnd, inc)
+    fn = y.shape[0]
+    if isinstance(wnd, int):
+        wlen = wnd
+    else:
+        wlen = len(wnd)
+    voiceseg, vsl, SF, Ef = pitch_vad(x, wnd, inc, T1, miniL)
+    lmin = fs // 500  # 基音周期的最小值
+    lmax = fs // 60  # 基音周期的最大值
+    period = np.zeros(fn)
+    y1 = y[np.where(SF == 1)[0], :]
+    y1 = np.multiply(y1, np.hamming(wlen))
+    xx = np.fft.fft(y1, axis=1)
+    b = np.fft.ifft(2 * np.log(np.abs(xx) + 1e-10))
+    Lc = np.argmax(b[:, lmin:lmax], axis=1) + lmin - 1
+    period[np.where(SF == 1)[0]] = Lc
+    return voiceseg, vsl, SF, Ef, period
+
+
+def pitch_Corr(x, wnd, inc, T1, fs, miniL=10):
+    """
+    自相关法基音周期检测函数
+    :param x: 
+    :param wnd: 
+    :param inc: 
+    :param T1: 
+    :param fs: 
+    :param miniL: 
+    :return: 
+    """
+    y = enframe(x, wnd, inc)
+    fn = y.shape[0]
+    if isinstance(wnd, int):
+        wlen = wnd
+    else:
+        wlen = len(wnd)
+    voiceseg, vsl, SF, Ef = pitch_vad(x, wnd, inc, T1, miniL)
+    lmin = fs // 500  # 基音周期的最小值
+    lmax = fs // 60  # 基音周期的最大值
+    period = np.zeros(fn)
+    for i in range(vsl):
+        ixb = voiceseg[i]['start']
+        ixd = voiceseg[i]['duration']
+        for k in range(ixd):
+            ru = np.correlate(y[k + ixb, :], y[k + ixb, :], 'full')
+            ru = ru[wlen:]
+            tloc = np.argmax(ru[lmin:lmax])
+            period[k + ixb] = lmin + tloc
+
+    return voiceseg, vsl, SF, Ef, period
+
+
+def pitch_Lpc(x, wnd, inc, T1, fs, p, miniL=10):
+    """
+    线性预测法基音周期检测函数
+    :param x:
+    :param wnd:
+    :param inc:
+    :param T1:
+    :param fs:
+    :param p:
+    :param miniL:
+    :return:
+    """
+    from scipy.signal import lfilter
+    from chapter3_分析实验.lpc import lpc_coeff
+    y = enframe(x, wnd, inc)
+    fn = y.shape[0]
+    if isinstance(wnd, int):
+        wlen = wnd
+    else:
+        wlen = len(wnd)
+    voiceseg, vsl, SF, Ef = pitch_vad(x, wnd, inc, T1, miniL)
+    lmin = fs // 500  # 基音周期的最小值
+    lmax = fs // 60  # 基音周期的最大值
+    period = np.zeros(fn)
+    for k in range(y.shape[0]):
+        if SF[k] == 1:
+            u = np.multiply(y[k, :], np.hamming(wlen))
+            ar, _ = lpc_coeff(u, p)
+            ar[0] = 0
+            z = lfilter(-ar, [1], u)
+            E = u - z
+            xx = np.fft.fft(E)
+            b = np.fft.ifft(2 * np.log(np.abs(xx) + 1e-20))
+            lc = np.argmax(b[lmin:lmax])
+            period[k] = lc + lmin
+    return voiceseg, vsl, SF, Ef, period
+
+~~~
+
+~~~py
+from chapter2_基础.soundBase import *
+from chapter4_特征提取.pitch_detection import *
+
+data, fs = soundBase('C4_2_y.wav').audioread()
+data -= np.mean(data)
+data /= np.max(np.abs(data))
+wlen = 320
+inc = 80
+N = len(data)
+time = [i / fs for i in range(N)]
+T1 = 0.05
+
+# 4.2.1
+voiceseg, vosl, SF, Ef = pitch_vad(data, wlen, inc, T1)
+fn = len(SF)
+frameTime = FrameTimeC(fn, wlen, inc, fs)
+
+plt.figure(figsize=(14, 8))
+
+plt.subplot(5, 1, 1)
+plt.plot(time, data)
+plt.subplot(5, 1, 2)
+plt.plot(frameTime, Ef)
+for i in range(vosl):
+    plt.subplot(5, 1, 2)
+    plt.plot(frameTime[voiceseg[i]['start']], Ef[voiceseg[i]['start']], '.k')
+    plt.plot(frameTime[voiceseg[i]['end']], Ef[voiceseg[i]['start']], 'or')
+    plt.legend(['能熵比', 'start', 'end'])
+
+# 4.2.3
+voiceseg, vsl, SF, Ef, period = pitch_Ceps(data, wlen, inc, T1, fs, miniL=10)
+plt.subplot(5, 1, 3)
+plt.plot(frameTime, period)
+for i in range(vsl):
+    plt.subplot(5, 1, 3)
+    plt.plot(frameTime[voiceseg[i]['start']], Ef[voiceseg[i]['start']], '.k')
+    plt.plot(frameTime[voiceseg[i]['end']], Ef[voiceseg[i]['start']], 'or')
+    plt.legend(['倒谱法', 'start', 'end'])
+
+# 4.2.4
+voiceseg, vsl, SF, Ef, period = pitch_Corr(data, wlen, inc, T1, fs)
+plt.subplot(5, 1, 4)
+plt.plot(frameTime, period)
+for i in range(vsl):
+    plt.subplot(5, 1, 4)
+    plt.plot(frameTime[voiceseg[i]['start']], Ef[voiceseg[i]['start']], '.k')
+    plt.plot(frameTime[voiceseg[i]['end']], Ef[voiceseg[i]['start']], 'or')
+    plt.legend(['自相关', 'start', 'end'])
+
+# 4.2.5
+p = 12
+voiceseg, vsl, SF, Ef, period = pitch_Lpc(data, wlen, inc, T1, fs, p)
+plt.subplot(5, 1, 5)
+plt.plot(frameTime, period)
+for i in range(vsl):
+    plt.subplot(5, 1, 5)
+    plt.plot(frameTime[voiceseg[i]['start']], Ef[voiceseg[i]['start']], '.k')
+    plt.plot(frameTime[voiceseg[i]['end']], Ef[voiceseg[i]['start']], 'or')
+    plt.legend(['线性预测', 'start', 'end'])
+
+plt.savefig('images/pitch.png')
+plt.close()
+
+# 4.2.2
+from scipy.signal import ellipord, ellip, freqz
+
+fs = 8000
+fs2 = fs / 2
+Wp = np.array([60, 500]) / fs2
+Ws = np.array([20, 1500]) / fs2
+Rp = 1
+Rs = 40
+n, Wn = ellipord(Wp, Ws, Rp, Rs)
+b, a = ellip(n, Rp, Rs, Wn, 'bandpass')
+print(b)
+print(a)
+
+w, H = freqz(b, a, 1000)
+H, w = H[:500], w[:500]
+mag = np.abs(H)
+db = 20 * np.log10((mag + 1e-20) / np.max(mag))
+
+plt.plot(w / np.pi * fs2, db)
+plt.ylim([-90, 10])
+plt.title('椭圆滤波器频率响应')
+plt.savefig('images/ellip.png')
+~~~
+![pitch](images/pitch.png)
+
+![ellip](images/ellip.png)

@@ -1,0 +1,306 @@
+## 倒谱分析
+
+语音信号$x(n)$可以看做是声门激励信号$x_1(n)$和声道冲击响应信号$x_2(n)$的卷积：
+$$x(n)=x_1(n)*x_2(n)$$
+
+为了便于处理卷积，系统通常采用同态处理的方式做卷积，将卷积关系变换为求和关系：
+![同态](images/同态.png)
+上图中`*`,`+`,`·`分别表示卷积，加法，乘法运算。第一个子系统中$D_*[]$完成卷积性信号转化为加性信号的运算，对信号$x(n)=x_1(n)*x_2(n)$进行一下处理：
+$$\left\{\begin{array}{ll}
+    Z[x(n)]=X(z)=X_1(z)*X_2(z)\\
+    \ln(X(z))=\ln(X_1(z))+\ln(X_2(z))=\hat{X_1}(z)+\hat{X_2}(z)=\hat{X}(z)\\
+    Z^{-1}[\hat{X}(z)]=Z^{-1}[\hat{X_1}(z)+\hat{X_2}(z)]=\hat{x_1}(n)+\hat{x_2}(n)=\hat{x}(n)
+\end{array}\right.$$
+
+第二个子系统是一个普通的线性系统，满足线性叠加原理，$\hat x(n)$是加性信号，可以对信号进行需要的线性变换得到$\hat y(n)$。
+
+第三个子系统是逆特征系统$D_*^{-1}[]$，他对$\hat y(n)=\hat{y_1}(n)+\hat{y_2}(n)$进行逆变换，使其恢复卷积性信号。处理方式为：
+$$\left\{\begin{array}{ll}
+    Z[\hat y(n)]=\hat Y(z)=\hat Y_1(z)* \hat Y_2(z)\\
+    \exp(\hat Y(z))=Y(z)=\hat{Y_1}(z)+\hat{Y_2}(z)\\
+    y(n)=Z^{-1}[\hat{Y_1}(z)+\hat{Y_2}(z)]=y_1(n)*y_2(n)
+\end{array}\right.$$
+
+$\hat x(n)$和$\hat y(n)$也是时域序列，但是他们与$x(n)$和$y(n)$所处的时域不同，称为复倒频谱域。$\hat x(n)$是$x(n)$的复倒频谱域，简称复倒频。表示为：$\hat x(n)=Z^{-1}[\ln Z[x(n)]]$。$D_*[]$与$D_*^{-1}[]$系统有：
+$$D_*[]:\left\{\begin{array}{ll}
+    F[x(n)]=X(e^{jw})\\
+    \hat X(e^{jw})=\ln [X(e^{jw})]\\
+    \hat x(n)=F^{-1}[\hat X(e^{jw})]
+\end{array}\right.$$
+
+$$D_*^{-1}[]:\left\{\begin{array}{ll}
+    \hat Y(e^{jw})=F[\hat y(n)]\\
+    Y(e^{jw})=\exp [\hat Y(e^{jw})]\\
+    y(n)=F^{-1}[\hat Y(e^{jw})]
+\end{array}\right.$$
+
+设$X(e^{jw})=|X(e^{jw})|e^{j\arg[X(e^{jw})]}$，取对数有：
+$$\hat X(e^{jw})=\ln |X(e^{jw})|+j\arg[X(e^{jw})]$$
+
+值考虑$\hat X(e^{jw})$的实部，有：
+$$c(n)=F^{-1}[\ln|X(e^{jw})|]$$
+
+$c(n)$是对数谱的逆傅里叶变换，称为倒频谱，简称倒谱。由于浊音信号的倒谱纯在峰值，出现位置等于该语音段的基音周期，而清音的倒谱中不存在峰值。这个特性可用于清浊音的判断，而且可以估计浊音的基音周期。
+得到数学公式以后，倒谱的计算也就变得容易实现了。只需要借助numpy的fft就可以快速实现。
+~~~py
+import numpy as np
+
+
+def cceps(x):
+    """
+    计算复倒谱
+    """
+    y = np.fft.fft(x)
+    return np.fft.ifft(np.log(y))
+
+
+def icceps(y):
+    """
+    计算复倒谱的逆变换
+    """
+    x = np.fft.fft(y)
+    return np.fft.ifft(np.exp(x))
+
+
+def rcceps(x):
+    """
+    计算实倒谱
+    """
+    y = np.fft.fft(x)
+    return np.fft.ifft(np.log(np.abs(y)))
+~~~
+如下图就是得到一个信号的倒谱，并可以重构回去。
+![倒谱](images/倒谱.png)
+
+## 离散余弦变换
+
+离散余弦变换（Discrete Cosine Transform, DCT）具有信号谱十分丰富，能量集中，在较低的运算复杂度下可以取得较好的语音增强效果。
+假设$x(n)$是N个有限值的一维实数信号序列，$n=1,2,...,N-1$，DCT的完备正交归一函数就是：
+
+$$\left\{\begin{array}{ll}
+    X(k)=a(k)\sum\limits_{n=0}^{N-1}x(n)\cos(\frac{(2n+1)k\pi}{2N})\\
+    x(n)=\sum\limits_{n=0}^{N-1}a(k)X(k)\cos(\frac{(2n+1)k\pi}{2N})
+\end{array}\right.$$
+其中$a(k)$为：
+$$a(k)=\left\{\begin{array}{ll}
+    \sqrt{1/N}&,k=0\\
+    \sqrt{2/N}&,k\in[1,N-1]
+\end{array}\right.$$
+
+将上面的式子变换为：
+$$X(k)=\sqrt{\frac{2}{N}}\sum\limits_{n=0}^{N-1}C(k)x(n)\cos(\frac{(2n+1)k\pi}{2N}),k=0,1,...,N-1\tag{DCT}$$
+
+$C(k)$是正交因子。
+$$C(k)=\left\{\begin{array}{ll}
+    \sqrt{2}/2&,k=0\\
+    1&,k\in[1,N-1]
+\end{array}\right.$$
+
+DCT的逆变换为：
+$$x(n)=\sqrt{\frac{2}{N}}\sum\limits_{n=0}^{N-1}C(k)X(k)\cos(\frac{(2n+1)k\pi}{2N}),k=0,1,...,N-1$$
+
+~~~py
+# 离散余弦变换
+import numpy as np
+
+
+def dct(x):
+    N = len(x)
+    X = np.zeros(N)
+    ts = np.array([i for i in range(N)])
+    C = np.ones(N)
+    C[0] = np.sqrt(2) / 2
+    for k in range(N):
+        X[k] = np.sqrt(2 / N) * np.sum(C[k] * np.multiply(x, np.cos((2 * ts + 1) * k * np.pi / 2 / N)))
+    return X
+
+
+def idct(X):
+    N = len(X)
+    x = np.zeros(N)
+    ts = np.array([i for i in range(N)])
+    C = np.ones(N)
+    C[0] = np.sqrt(2) / 2
+    for n in range(N):
+        x[n] = np.sqrt(2 / N) * np.sum(np.multiply(np.multiply(C[ts], X[ts]), np.cos((2 * n + 1) * np.pi * ts / 2 / N)))
+    return x
+
+~~~
+~~~py
+from chapter2_基础.soundBase import *
+from chapter3_分析实验.dct import *
+
+f = 50
+fs = 1000
+N = 1000
+n = np.array([i for i in range(N)])
+
+xn = np.cos(2 * np.pi * f * n / fs)
+y = dct(xn)
+y = np.where(abs(y) < 5, 0, y)
+
+zn = idct(y)
+
+plt.subplot(3, 1, 1)
+plt.plot(xn)
+plt.subplot(3, 1, 2)
+plt.plot(y)
+plt.subplot(3, 1, 3)
+plt.plot(zn)
+plt.show()
+
+~~~
+![dct](images/dct.png)
+
+
+## 美尔频率倒谱系数
+美尔频率倒谱系数（Mel-Frequency Cepstral Coefficients, MFCC）分析是基于人的听觉特性机理，即根据人的听觉试验结果来分析语音的频谱，因为人耳听到的声音的高低与声音的频率不成线性正比关系。美尔频率尺度的值大体上对应实际频率的对数分布关系，其与实际频率的具体关系可表示为：
+$$F_{Mel}(f)=1125\ln(1+f/700)$$
+
+其中，$F_{Mel}$是以美尔（Mel）为单位的感知频率，$f$是以Hz为单位的实际频率。临界频率贷款随着频率的变化而变化，并与Mel频率的增长一致，在1000Hz一下，大致呈线性关系，带宽100Hz左右；在1000Hz以上呈对数增长。可以将语音频率划分为一系列三角形的滤波器序列，即美尔滤波器组。
+![mel](images/mel.png)
+
+在语音的频谱范围内设置若干个带通滤波器$H_M(k)$，$0\leqslant m \leqslant M$,M为滤波器个数，每个滤波器具有三角形滤波的特性。其中中心频率为$f(m)$,在Mel频率范围内，哲学滤波器是等带宽的，每个带通滤波器的传递函数为：
+
+$$H_m(k)=\left\{\begin{array}{ll}
+    0&k<f(m-1)\\
+    \frac{k-f(m-1)}{f(m)-f(m-1)}& f(m-1)\leqslant k \leqslant f(m)\\
+    \frac{f(m+1)-k}{f(m+1)-f(m)}&f(m)\leqslant k \leqslant f(m+1)\\
+    0&k>f(m+1)
+\end{array}\right.$$
+
+其中，$\sum\limits_m^{M-1}H_m(k)=1$.
+
+美尔滤波器的中心频率$f(m)$为：
+$$f(m)=\frac{N}{f_s}F_{Mel}^{-1}[F_{Mel}(f_l)+m\frac{F_{Mel}(f_h)-F_{Mel}(f_l)}{M+1}]$$
+
+$f_h$和$f_l$分别为滤波器组的最高和最低频率，$f_s$为采样频率，单位为Hz. M是滤波器组的数目，N是FFT变换的点数。式中$F_{Mel}^{-1}(b)=700(e^{\frac{b}{1125}}-1)$。
+
+python实现Mel滤波器组可以参考（代码来自[Mel滤波器组的设计与实现（基于MATLAB和Python）](https://blog.csdn.net/qq_39516859/article/details/80815369)）：
+~~~py
+import numpy as np
+import pylab as plt
+
+
+def melbankm(p, NFFT, fs, fl, fh, w=None):
+    """
+    计算Mel滤波器组
+    :param p: 滤波器个数
+    :param n: 一帧FFT后的数据长度
+    :param fs: 采样率
+    :param fl: 最低频率
+    :param fh: 最高频率
+    :param w: 窗(没有加窗，无效参数)
+    :return:
+    """
+    bl = 1125 * np.log(1 + fl / 700)  # 把 Hz 变成 Mel
+    bh = 1125 * np.log(1 + fh / 700)
+    B = bh - bl  # Mel带宽
+    y = np.linspace(0, B, p + 2)  # 将梅尔刻度等间隔
+    Fb = 700 * (np.exp(y / 1125) - 1)  # 把 Mel 变成Hz
+    W2 = int(NFFT / 2 + 1)
+    df = fs / NFFT
+    freq = [int(i * df) for i in range(W2)]  # 采样频率值
+    bank = np.zeros((p, W2))
+    for k in range(1, p + 1):
+        f0, f1, f2 = Fb[k], Fb[k - 1], Fb[k + 1]
+        n1 = np.floor(f1 / df)
+        n2 = np.floor(f2 / df)
+        n0 = np.floor(f0 / df)
+        for i in range(1, W2):
+            if n1 <= i <= n0:
+                bank[k - 1, i] = (i - n1) / (n0 - n1)
+            elif n0 < i <= n2:
+                bank[k - 1, i] = (n2 - i) / (n2 - n0)
+            elif i > n2:
+                break
+        plt.plot(freq, bank[k - 1, :], 'r')
+    plt.savefig('images/mel.png')
+    return bank
+
+
+if __name__ == '__main__':
+    melbankm(24, 256, 8000, 0, 4000)
+
+~~~
+
+## MFCC计算
+MFCC的计算过程可以表示为：
+![mfcc](images/mfcc.png)
+
+### 预处理
+预处理包括预加重，分帧，加窗函数
+ - 预加重
+  由于声门脉冲的频率响应曲线接近于一个二阶低通滤波器，口腔辐射响应也接近一个低阶高通滤波器，预加重的目的是为了补偿高频分量的损失，提升高频分量。
+  $$H(z)=1-az^{-1}$$
+
+ - 分帧
+  分帧是将信号分成一个一个的短时片段。每帧之间有重叠部分。
+
+ - 加窗
+  加窗是为了减少频域中的泄露，对每帧语音信号乘以窗函数。
+
+### FFT
+
+对每帧信号进行FFT变换，从时域数据转化为频域数据：
+$$X(i,k)=FFT(X_i(m))$$
+
+### 计算谱线能量
+对每帧FFT后的数据计算普选的能量：
+$$E(i,k)=[X_i(k)]^2$$
+
+### 计算通过Mel滤波器的能量
+将求出的每帧谱线能量通过Mel滤波器，并计算在Mel滤波器中的能量。在频域中，相当于把每帧的能量谱$E(i,k)$与Mel滤波器的频率响应$H_m(k)$相乘相加：
+$$S(i,m)=\sum\limits_{k=0}^{N-1}E(i,k)H_m(k),0 \leqslant m <M$$
+
+### 计算DCT倒谱
+序列$x(n)$的FFT倒谱$\hat x(n)$为：
+$$\hat x(n)=FFT^{-1}[\hat X(k)]$$
+
+其中$\hat X(k)=\ln[FFT(x(n))]=\ln(X(k))$。由之前的公式可知，DCT的计算方法为：
+$$X(k)=\sqrt{\frac{2}{N}}\sum\limits_{n=0}^{N-1}C(k)x(n)\cos(\frac{(2n+1)k\pi}{2N}),k=0,1,...,N-1\tag{DCT}$$
+
+所以求DCT倒谱实际上就是将DCT取对数后求FFT逆变换。MFCC是将Mel滤波器的能量取对数后计算DCT:
+$$mfcc(i,n)=\sqrt{\frac{2}{M}}\sum\limits_{n=0}^{M-1}\log [S_i(i,m)]\cos[\frac{(2m+1)n\pi}{2M}],n=0,1,...,N-1$$
+
+其中$S_i(i,m)$是Mel滤波器计算输出，$m$是指第$m$个滤波器（一共M个），i是指第i帧，n是DCT后的谱线。
+
+借助numpy与前面写过的部分函数实现mfcc计算方法为：
+~~~py
+def Nmfcc(x, fs, p, frameSize, inc):
+    """
+    计算mfcc系数
+    :param x: 输入信号
+    :param fs: 采样率
+    :param p: Mel滤波器组的个数
+    :param frameSize: 分帧的每帧长度
+    :param inc: 帧移
+    :return:
+    """
+    # bank = melbankm(p, frameSize, fs, 0, 0.5 * fs, 0)
+    # 预处理-预加重
+    xx = lfilter([1, -0.9375], [1], x)
+    # 预处理-分幀
+    xx = enframe(xx, frameSize, inc)
+    # 预处理-加窗
+    xx = np.multiply(xx, np.hanning(frameSize))
+    # 计算FFT
+    xx = np.fft.fft(xx)
+    # 计算能量谱
+    xx = np.multiply(np.abs(xx), np.abs(xx))
+    # 计算通过Mel滤波器的能量
+    xx = xx[:, :frameSize // 2 + 1]
+    bank = melbankm(p, frameSize, fs, 0, 0.5 * fs, 0)
+    ss = np.matmul(xx, bank.T)
+    # 计算DCT倒谱
+    n_dct = 12
+    M = bank.shape[0]
+    m = np.array([i for i in range(M)])
+    mfcc = np.zeros((ss.shape[0], n_dct))
+    for n in range(n_dct):
+        mfcc[:, n] = np.sqrt(2 / M) * np.sum(np.multiply(np.log(ss), np.cos((2 * m - 1) * n * np.pi / 2 / M)), axis=1)
+    return mfcc
+~~~
+
+
+
