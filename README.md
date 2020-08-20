@@ -17,6 +17,8 @@
 
 [Python语音基础操作--3.4倒谱分析与MFCC系数](https://blog.csdn.net/sinat_18131557/article/details/105795864)
 
+[Python语音基础操作--3.5线性预测分析](https://blog.csdn.net/sinat_18131557/article/details/105795944)
+
 [Python语音基础操作--4.1语音端点检测](https://blog.csdn.net/sinat_18131557/article/details/106017459)
 
 [Python语音基础操作--4.2基音周期检测](https://blog.csdn.net/sinat_18131557/article/details/106017542)
