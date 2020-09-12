@@ -1,7 +1,7 @@
 from chapter2_基础.soundBase import *
 from chapter4_特征提取.pitch_detection import *
 
-data, fs = soundBase('C4_2_y.wav').audioread()
+data, fs, bits = soundBase('C4_2_y.wav').audioread()
 data -= np.mean(data)
 data /= np.max(np.abs(data))
 wlen = 320

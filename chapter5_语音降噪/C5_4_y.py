@@ -12,7 +12,7 @@ def awgn(x, snr):
     return x + np.random.randn(len(x)) * np.sqrt(npower)
 
 
-data, fs = soundBase('C5_4_y.wav').audioread()
+data, fs, _ = soundBase('C5_4_y.wav').audioread()
 data -= np.mean(data)
 data /= np.max(np.abs(data))
 SNR = 5

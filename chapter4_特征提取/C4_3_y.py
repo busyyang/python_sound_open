@@ -4,7 +4,7 @@ from scipy.signal import lfilter
 
 plt.figure(figsize=(14, 12))
 
-data, fs = soundBase('C4_3_y.wav').audioread()
+data, fs, _ = soundBase('C4_3_y.wav').audioread()
 # 预处理-预加重
 u = lfilter([1, -0.99], [1], data)
 
