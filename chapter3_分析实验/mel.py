@@ -60,7 +60,7 @@ def Nmfcc(x, fs, p, frameSize, inc, nfft=512, n_dct=12):
     # 计算FFT
     xx = np.fft.rfft(xx, nfft)
     # 计算能量谱
-    xx = np.multiply(np.abs(xx), np.abs(xx))
+    xx = (np.abs(xx) ** 2) / nfft
     # 计算通过Mel滤波器的能量
     bank = melbankm(p, nfft, fs, 0, 0.5 * fs, 0)
     ss = np.matmul(xx, bank.T)
