@@ -9,4 +9,5 @@ community_bridge: # Replace with a single Community Bridge project-name e.g., cl
 liberapay: # Replace with a single Liberapay username
 issuehunt: # Replace with a single IssueHunt username
 otechie: # Replace with a single Otechie username
-custom: # Replace with up to 4 custom sponsorship URLs e.g., ['link1', 'link2']
+custom: ['http://m.qpic.cn/psc?/V12DgbRP0a1TXP/ruAMsa53pVQWN7FLK88i5v4.insf.ZHWVeORtvgzbl.vHII7E8ek5dARBRWrXiQl200fh19JT1dhkfbtR0fFThtQrqHbBn8Xxx3v9blYoEg!/b',
+         'http://m.qpic.cn/psc?/V12DgbRP0a1TXP/45NBuzDIW489QBoVep5mcSWetEN.fWtw790qmGKuWtj0GVwIhckkAX.88GSFFJX4PqpthhQGL6oaPvOeVmb8muDqRmmKeUrI9eA.C6DMaQw!/b']
