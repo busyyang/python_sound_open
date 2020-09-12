@@ -36,12 +36,12 @@ def melbankm(p, NFFT, fs, fl, fh, w=None):
                 bank[k - 1, i] = (n2 - i) / (n2 - n0)
             elif i > n2:
                 break
-        #plt.plot(freq, bank[k - 1, :], 'r')
-    #plt.savefig('images/mel.png')
+        # plt.plot(freq, bank[k - 1, :], 'r')
+    # plt.savefig('images/mel.png')
     return bank
 
 
-def Nmfcc(x, fs, p, frameSize, inc):
+def Nmfcc(x, fs, p, frameSize, inc, nfft=512, n_dct=12):
     """
     计算mfcc系数
     :param x: 输入信号
@@ -58,15 +58,13 @@ def Nmfcc(x, fs, p, frameSize, inc):
     # 预处理-加窗
     xx = np.multiply(xx, np.hanning(frameSize))
     # 计算FFT
-    xx = np.fft.fft(xx)
+    xx = np.fft.rfft(xx, nfft)
     # 计算能量谱
     xx = np.multiply(np.abs(xx), np.abs(xx))
     # 计算通过Mel滤波器的能量
-    xx = xx[:, :frameSize // 2 + 1]
-    bank = melbankm(p, frameSize, fs, 0, 0.5 * fs, 0)
+    bank = melbankm(p, nfft, fs, 0, 0.5 * fs, 0)
     ss = np.matmul(xx, bank.T)
     # 计算DCT倒谱
-    n_dct = 12
     M = bank.shape[0]
     m = np.array([i for i in range(M)])
     mfcc = np.zeros((ss.shape[0], n_dct))
