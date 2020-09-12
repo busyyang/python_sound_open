@@ -220,3 +220,5 @@ plt.close()
 
 ![wavelet](images/wavelet.png)
 
+除了使用小波降噪以外，还有使用小波包分解结合MFCC来提特征的做法。参照[小波包分解-MFCC](https://github.com/busyyang/python_sound_open/blob/master/chapter5_%E8%AF%AD%E9%9F%B3%E9%99%8D%E5%99%AA/wp_mfcc.py)的实现。
+
