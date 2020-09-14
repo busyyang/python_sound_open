@@ -57,6 +57,9 @@
 
 [Python语音基础操作--12.4基于LDA，PCA的语音情感识别](https://blog.csdn.net/sinat_18131557/article/details/106441186)
 
+# Info
+本repo仅提供了前10章的代码，第11，第12章代码不为免费开放内容，若有需要请以"Python语音基础操作第11,12章代码"为主题发送邮件到jzhm_4@hotmail.com。
+
 # Ref
 1. [《语音信号处理试验教程》（梁瑞宇等）](https://github.com/bastamon/sound_signal_process-matlab-)
 
