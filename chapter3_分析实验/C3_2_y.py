@@ -4,7 +4,7 @@ from chapter3_分析实验.windows import *
 from chapter3_分析实验.timefeature import *
 from chapter2_基础.soundBase import *
 
-data, fs, nbits = soundBase('C3_2_y.wav').audioread()
+data, fs = soundBase('C3_2_y.wav').audioread()
 
 
 

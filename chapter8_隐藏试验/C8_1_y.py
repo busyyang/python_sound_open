@@ -38,7 +38,7 @@ def extract_message(x, m_len, nBits=1):
     return meg
 
 
-data, fs, bits = soundBase('C8_1_y.wav').audioread()
+data, fs, bits = soundBase('C8_1_y.wav').audioread(return_nbits=True)
 data16 = (data + 1) * np.power(2, bits - 1)
 nBits = 1
 s = loadmat('C8_1_y.DAT')

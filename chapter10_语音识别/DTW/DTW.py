@@ -201,23 +201,23 @@ if __name__ == '__main__':
     # 制作模板集
     features = {}
     for i in range(10):
-        data, fs, bits = soundBase('p1/{}.wav'.format(i)).audioread()
+        data, fs = soundBase('p1/{}.wav'.format(i)).audioread()
         speechIn1 = my_vad(data)
         fm = mfccf(12, speechIn1, fs)
         features['p1_{}'.format(i)] = fm
     for i in range(10):
-        data, fs, bits = soundBase('p2/{}.wav'.format(i)).audioread()
+        data, fs = soundBase('p2/{}.wav'.format(i)).audioread()
         speechIn1 = my_vad(data)
         fm = mfccf(12, speechIn1, fs)
         features['p2_{}'.format(i)] = fm
     for i in range(10):
-        data, fs, bits = soundBase('p3/{}.wav'.format(i)).audioread()
+        data, fs = soundBase('p3/{}.wav'.format(i)).audioread()
         speechIn1 = my_vad(data)
         fm = mfccf(12, speechIn1, fs)
         features['p3_{}'.format(i)] = fm
 
     soundBase('mysound.wav').audiorecorder(rate=16000, channels=1)
-    data, fs, bits = soundBase('mysound.wav').audioread()
+    data, fs = soundBase('mysound.wav').audioread()
     mysound = my_vad(data)
     fm_my = mfccf(12, mysound, fs)
     fm_my = CMN(fm_my)
