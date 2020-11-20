@@ -85,7 +85,7 @@ class soundBase:
         else:
             wavfile.write(path, fs, data)
 
-    def audioread(self, formater='sample'):
+    def audioread(self, return_nbits=False, formater='sample'):
         """
         读取语音文件
         2020-2-26   Jie Y.  Init
@@ -98,7 +98,10 @@ class soundBase:
         fs, data, bits = wavfile.read(self.path)
         if formater == 'sample':
             data = data / (2 ** (bits - 1))
-        return data, fs, bits
+        if return_nbits:
+            return data, fs, bits
+        else:
+            return data, fs
 
     def soundplot(self, data=[], sr=16000, size=(14, 5)):
         """
