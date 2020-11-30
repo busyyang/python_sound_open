@@ -37,7 +37,7 @@ plt.ylabel('Frequency')
 plt.xlabel('Time(s)')
 plt.show()
 ~~~
-进行绘制语谱图，如果想要使用短时傅里叶变化得到的结果来做，那么首先看下输出的结果是一个复数矩阵，所以先求模`np.abs(y)`，那么用`plt.matshow`可以得到结果，不过这样的语谱图上下颠倒的，使用`np.flip(np.abs(y), 0))`上数据上下翻转一下。在绘制之前最好转化为dB单位，就是以10取对数，不然啥也看不见，黑乎乎一片。
+进行绘制语谱图，如果想要使用短时傅里叶变化得到的结果来做，那么首先看下输出的结果是一个复数矩阵，所以先求模后平方`np.abs(y)*np.abs(y)`，那么用`plt.matshow`可以得到结果，不过这样的语谱图上下颠倒的，使用`np.flip(np.abs(y)*np.abs(y), 0))`上数据上下翻转一下。在绘制之前最好转化为dB单位，就是以10取对数，不然啥也看不见，黑乎乎一片。
 ~~~py
 from chapter3_分析实验.windows import *
 from chapter3_分析实验.timefeature import *
@@ -62,7 +62,7 @@ y = STFFT(data, win, nfft, inc)
 freq = [i * fs / wlen for i in range(wlen // 2)]
 frame = FrameTimeC(y.shape[1], wlen, inc, fs)
 
-plt.matshow(np.log10(np.flip(np.abs(y), 0)))
+plt.matshow(np.log10(np.flip(np.abs(y)*np.abs(y), 0)))
 plt.colorbar()
 plt.show()
 
