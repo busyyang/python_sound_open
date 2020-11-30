@@ -21,9 +21,10 @@ y = STFFT(data, win, nfft, inc)
 freq = [i * fs / wlen for i in range(wlen // 2)]
 frame = FrameTimeC(y.shape[1], wlen, inc, fs)
 
-plt.matshow(np.log10(np.flip(np.abs(y), 0)))
+plt.matshow(np.log10(np.flip(np.abs(y) * np.abs(y), 0)))
 plt.colorbar()
 plt.savefig('images/spec.png')
+plt.close()
 
 plt.specgram(data, NFFT=256, Fs=fs, window=np.hanning(256))
 plt.ylabel('Frequency')
