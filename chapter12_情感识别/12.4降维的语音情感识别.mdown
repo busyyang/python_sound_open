@@ -1,0 +1,280 @@
+### LDA
+线性鉴别分析（Linear Discriminant Analysis, LDA）的基本思想是将高维的模式样本投影到最佳鉴别矢量空间，以达到抽取分类信息和压缩特征空间维度的效果，投影后保证模式样本在新的子空间有最大的类间距离和最小的类内距离。假设有一组属于两个类的n个d维样本$x_1,...,x_n\in R^d$,其中前$n_1$个样本属于类$w_1$,后$n_2$个样本属于类$w_2$，均值从同协方差矩阵的高斯分布。各类样本均值向量$m_1(i=1,2)$为：
+$$m_i=\frac{1}{n_i}\sum_{x\in w_i}x$$
+
+样本类内离散度矩阵$S_i$和总的类内离散度矩阵$S_w$的表达式为：
+$$\begin{array}{ll}
+    S_i=\sum_{x\in w_i}(x-m_i)(x-m_i)^T,(i=1,2)\\S_w=S_1+S_2
+\end{array}$$
+
+样本类间离散度矩阵$S_b$定义为：
+$$S_b=(m_1-m_2)(m_1-m_2)^T$$
+
+现在要一个最佳超平面将两类分开，则只需要将所有样本投影到此超平面的法线方向上$w\in R^d,||w||=1$:
+$$y_i=w^Tx_i,i=1,2,...,n$$
+
+得到n个新样本$y_1,...,y_n\in R^d$,这样样本相应属于集合$Y_1$,$Y_2$,并且能很好地被分开。这个投影方向$w$要求有最大类间距离和最小类内距离。
+$$J_F(w)=\frac{(\bar{m_1}-\bar{m_2})^2}{\bar{s_1}^2+\bar{s_2}^2}$$
+
+$\bar{m_1},\bar{m_2}$表示类间距离，$\bar{s_1}^2,\bar{s_2}^2$是类内距离。
+$$\bar{m_i}=\frac{1}{n_i}\sum_{y\in Y_i}y=\frac{1}{n_i}\sum_{x\in X_i}w^Tx_i=w^Tm_i$$
+
+所以$(\bar{m_1}-\bar{m_2})^2=(w^Tm_1-w^Tm_2)^2=w^T(m_1-m_2)(m_1-m_2)w=s^TS_bw$
+
+$$\bar{s_i}^2=\sum(y-\bar{m_i})^2=\sum(w^Tx-w^Tm_i)^2=w^T[\sum(x-m_i)(x-m_i)^2]w=w^TS_iw$$
+所以$\bar{s_1}^2+\bar{s_2}^2=w^T(S_1+S_2)w,w^T(S_w)w$,这里，$S_w=S_1+S_2$
+
+所以,Fisher准则函数：
+$$J_F(w)=\frac{w^TS_bw}{w^T(S_w)w}$$
+
+为了使$J_F(w)$最小，令$\frac{\partial J_F(w)}{\partial w}=0$可以得到：
+$$S_bw=J_F(w)S_ww$$
+
+令$J_F(w)=\lambda$,那么$S_bw=\lambda S_ww$，如果$S_w$是非奇异的，$S_w^{-1}S_bw=\lambda w$,通过对$S_w^{-1}S_b$特征分解，将最大特征值对应的特征向量作为投影方向$w$。
+
+对于多分类问题，假设C类，则需要c-1个两分类的Fischer线性判别函数，即需要c-1个投影向量$w$组成一个投影矩阵$W\in R^{d\times c-1}$,将样本投影到此投影矩阵上，从而可以提取c-1维的特征矢量，对于C类问题：
+样本均值：
+$$m_i=\frac{1}{n}\sum x$$
+
+样本类内离散度矩阵：
+$$S_w=\sum\limits_{i=1}^C\sum_{x\in w_i}(x-m_i)(x-m_i)^T$$
+
+样本类间离散度矩阵：
+$$S_b=\sum\limits_{i=1}^C\sum_{x\in w_i}(m_i-m)(m_i-m)^T$$
+
+将样本空间投影到投影矩阵W上，得到c-1维的特征矢量$y=W^Tx$，其中$W\in R^{d\times c-1},y\in R^{c-1}$,计算投影后的$S_b,S_w$带入Fischer判别式。
+LDA的步骤为：
+ - 中心化训练样本，计算类内离散度矩阵和类间离散度矩阵。
+ - 计算样本协方差矩阵，并特征值分解，将特征向量按照特征值大小降序排序，取前若干个特征向量组成投影矩阵。
+ - 计算投影到投影矩阵上的样本类内离散度矩阵$S_w$和类间离散度矩阵$S_b$。
+ - 对$S_w^{-1}S_b$进行特征值分解，寻找最佳投影子空间。
+ - 对$S_w^{-1}S_b$的按照其特征值进行降序排序。
+ - 取前c-1个特征值对应的特征向量组成新的投影矩阵。
+ - 将训练样本按照新的投影矩阵进行投影。
+ - 对测试样本进行中心化处理，并按照新的投影矩阵进行投影。
+ - 选择合适的分类算法进行分类。
+
+
+
+~~~py
+## 使用sklearn的包进行LDA,PCA
+import numpy as np
+from scipy.io import loadmat
+from sklearn.metrics import confusion_matrix, f1_score, classification_report
+import matplotlib.pyplot as plt
+from sklearn.decomposition import pca
+from sklearn import svm
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.neighbors import KNeighborsClassifier
+
+
+def confusion_matrix_info(y_true, y_pred, labels=['fear', 'happy', 'neutr', 'sad', 'anger'], title='confusion matrix'):
+    """
+    计算混淆矩阵以及一些评价指标，并将混淆矩阵绘图出来
+    :param y_true: 真实标签，非one-hot编码
+    :param y_pred: 预测标签，非one-hot编码
+    :param labels: 标签的含义
+    :param title: 绘图的标题
+    :return:
+    """
+    import seaborn as sns
+    import pandas as pd
+    C2 = confusion_matrix(y_true, y_pred)
+    C = pd.DataFrame(C2, columns=labels, index=labels)
+    m, _ = C2.shape
+    for i in range(m):
+        precision = C2[i, i] / sum(C2[:, i])
+        recall = C2[i, i] / sum(C2[i, :])
+        f1 = 2 * precision * recall / (precision + recall)
+        print('In class {}:\t total samples: {}\t true predict samples: {}\t'
+              'acc={:.4f},\trecall={:.4f},\tf1-score={:.4f}'.format(
+            labels[i], sum(C2[i, :]), C2[i, i], precision, recall, f1))
+    print('-' * 100, '\n', 'average f1={:.4f}'.format(f1_score(y_true, y_pred, average='micro')))
+
+    f, ax = plt.subplots()
+    sns.heatmap(C, annot=True, ax=ax, cmap=plt.cm.binary)
+    ax.set_title(title)
+    ax.set_xlabel('predict')
+    ax.set_ylabel('true')
+    plt.show()
+
+
+if __name__ == '__main__':
+    # 载入数据
+    fear = loadmat('A_Fear.mat')['fearVec']
+    happy = loadmat('F_Happiness.mat')['hapVec']
+    neutral = loadmat('N_neutral.mat')['neutralVec']
+    sadness = loadmat('T_sadness.mat')['sadnessVec']
+    anger = loadmat('W_anger.mat')['angerVec']
+    data = np.hstack((fear, happy, neutral, sadness, anger)).T
+    y = np.array([[i] * 50 for i in range(5)]).flatten()
+    # PCA降维
+    p = pca.PCA(10)
+    data_re = p.fit(data.T) # fit后返回的是一个结构体，降维后的数据在components_里面
+    # 分类器分类
+    clf = svm.SVC()
+    clf.fit(data_re.components_.T[::2], y[::2])
+    yp = clf.predict(data_re.components_.T[::3])
+    confusion_matrix_info(y[::3], yp, title='PCA')
+    print(classification_report(y[::3], yp, target_names=['fear', 'happy', 'neutr', 'sad', 'anger']))
+    print('-' * 100)
+    # LDA降维与分类
+    lda = LinearDiscriminantAnalysis()
+    lda.fit(data[::2], y[::2])
+    yp = lda.predict(data[::3])
+    confusion_matrix_info(y[::3], yp, title='LDA')
+    print(classification_report(y[::3], yp, target_names=['fear', 'happy', 'neutr', 'sad', 'anger']))
+
+~~~
+
+~~~py
+"""
+手写LDA，PCA
+LDA算法将数据投影到新的轴上去
+来源：https://blog.csdn.net/z962013489/article/details/79871789
+和：  https://blog.csdn.net/z962013489/article/details/79918758
+"""
+
+import numpy as np
+from scipy.io import loadmat
+import matplotlib.pyplot as plt
+from sklearn import svm
+from sklearn.metrics import confusion_matrix, f1_score, classification_report
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+
+
+def confusion_matrix_info(y_true, y_pred, labels=['fear', 'happy', 'neutr', 'sad', 'anger'], title='confusion matrix'):
+    """
+    计算混淆矩阵以及一些评价指标，并将混淆矩阵绘图出来
+    :param y_true: 真实标签，非one-hot编码
+    :param y_pred: 预测标签，非one-hot编码
+    :param labels: 标签的含义
+    :param title: 绘图的标题
+    :return:
+    """
+    import seaborn as sns
+    import pandas as pd
+    C2 = confusion_matrix(y_true, y_pred)
+    C = pd.DataFrame(C2, columns=labels, index=labels)
+    m, _ = C2.shape
+    for i in range(m):
+        precision = C2[i, i] / sum(C2[:, i])
+        recall = C2[i, i] / sum(C2[i, :])
+        f1 = 2 * precision * recall / (precision + recall)
+        print('In class {}:\t total samples: {}\t true predict samples: {}\t'
+              'acc={:.4f},\trecall={:.4f},\tf1-score={:.4f}'.format(
+            labels[i], sum(C2[i, :]), C2[i, i], precision, recall, f1))
+    print('-' * 100, '\n', 'average f1={:.4f}'.format(f1_score(y_true, y_pred, average='micro')))
+
+    f, ax = plt.subplots()
+    sns.heatmap(C, annot=True, ax=ax, cmap=plt.cm.binary)
+    ax.set_title(title)
+    ax.set_xlabel('predict')
+    ax.set_ylabel('true')
+    plt.show()
+
+
+class LDA:
+    def __init__(self, num):
+        self.num = num
+
+    def fit(self, x, y):
+        classes = list(set(y))
+        mus = np.zeros((len(classes), x.shape[1]))
+        Sw = np.zeros((x.shape[1], x.shape[1]))  # 计算类内散度矩阵
+        Sb = np.zeros((x.shape[1], x.shape[1]))  # 计算类间散度矩阵
+        i = 0
+        x_classed = {}
+        for n in classes:
+            data = x[np.where(y == n)[0]]  # 取出当前分类的所有数据
+            x_classed[i] = data
+            mus[i] = np.mean(data, axis=0)  # 当前分类的均值
+            data -= mus[i]  # 去中心化数据
+            Sw += np.matmul(data.T, data)  # 计算类内散度矩阵
+            i += 1
+        # 计算类间距离
+        for i in range(len(classes)):
+            dd = mus[i] - np.mean(x, axis=0)
+            Sb += len(x_classed[i]) * np.matmul(dd.reshape(x.shape[1], -1), dd.reshape(-1, x.shape[1]))
+        ## 或者这样计算Sb
+        # St = np.matmul((x - np.mean(x, axis=0)).T, x - np.mean(x, axis=0))
+        # Sb = St - Sw
+        eig_vals, eig_vecs = np.linalg.eig(np.linalg.inv(Sw).dot(Sb))  # 计算Sw-1*Sb的特征值和特征矩阵
+        sorted_indices = np.argsort(eig_vals)[::-1]  # 特征值排序并倒序过来，最大值在前
+        topk_eig_vecs = eig_vecs[:, sorted_indices[:self.num]]  # 提取前k个特征向量
+        self.topk_eig_vecs = topk_eig_vecs
+        return topk_eig_vecs
+
+
+class PCA:
+    def __init__(self, num):
+        self.num = num
+
+    def fit(self, x):
+        """
+        得到特征值最大的前K个投影方向的投影，并将投影方向保存到self.topk_eig_vecs中
+        :param x: 目标数据(n_samples,n_features)
+        :return:
+        """
+        # 去中心化
+        x -= np.mean(x, axis=0)
+        # 求协方差矩阵
+        covMat = np.cov(x, rowvar=0)
+        # 特征分解得到特征向量与特征值
+        eigVals, eigVects = np.linalg.eig(np.mat(covMat))  # 求特征值和特征向量,特征向量是按列放的
+        # 取前K个特征值最大的向量
+        eigValIndice = np.argsort(eigVals)[::-1]  # 对特征值从大到小排序
+        topk_eig_vecs = eigVects[:, eigValIndice[:self.num]]  # 提取前k个特征向量
+        self.topk_eig_vecs = topk_eig_vecs
+        return np.dot(x, topk_eig_vecs)
+
+    def pca_new(self, x):
+        """
+        将新数据进行投影
+        :param x:目标数据(n_samples,n_features)
+        :return:
+        """
+        return np.dot(x, self.topk_eig_vecs)
+
+
+if '__main__' == __name__:
+    # 载入数据
+    fear = loadmat('A_Fear.mat')['fearVec']
+    happy = loadmat('F_Happiness.mat')['hapVec']
+    neutral = loadmat('N_neutral.mat')['neutralVec']
+    sadness = loadmat('T_sadness.mat')['sadnessVec']
+    anger = loadmat('W_anger.mat')['angerVec']
+    x = np.hstack((fear, happy, neutral, sadness, anger)).T
+    y = np.array([[i] * 50 for i in range(5)]).flatten()
+    ## 使用自定义的LDA降维
+    lda = LDA(num=10)
+    W = lda.fit(x, y)
+    X_new = np.dot(x, W)
+    plt.subplot(121)
+    plt.scatter(X_new[:, 0], X_new[:, 1], marker='o', c=y)
+    plt.title('myLDA')
+    ## 使用sklearn LDA降维
+    lda2 = LinearDiscriminantAnalysis(n_components=10)
+    lda2.fit(x, y)
+    X_new_2 = lda2.transform(x)
+    plt.subplot(122)
+    plt.scatter(X_new_2[:, 0], X_new_2[:, 1], marker='o', c=y)
+    plt.title('sklearn-LDA')
+
+    # 降维后分类看看分类器分类
+    clf = svm.SVC()
+    clf.fit(X_new[::2], y[::2])
+    yp = clf.predict(X_new[::3])
+    confusion_matrix_info(y[::3], yp, title='MyLDA')
+
+    pca = PCA(num=10)
+    xx = pca.fit(x)
+    # 这是新的数据，与x是同分布的，计算投影后的特征空间
+    x_new = pca.pca_new(x[::3])
+    clf = svm.SVC()
+    clf.fit(xx, y)
+    ypp = clf.predict(x_new)
+    confusion_matrix_info(y[::3], ypp, title='myPCA')
+
+~~~
+

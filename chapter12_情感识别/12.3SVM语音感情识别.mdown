@@ -1,0 +1,53 @@
+20 个世纪90 年代Vapnik等人提出了支持向量机(SVM) 算法，它是一种基于统计理论的学习方法，其日的是为了改善神经网络学习方法的不足。目前SVM已经广泛应用于数据挖掘、模式识别等领域。支持向量机在机器学习领域有着重要的地位，其集最大间隔的超平面、凸二次规划问题、核分析方法等多种技术于一身，具有广阔的发展和应用前景。支持向量机从当初被提出，经过Dual、Smith等人的逐步完善，Vapnik在《统计学习理论》的论著中论证了SVM算法优于归纳推理给出的误差率的界。大量研究表明SVM 算法是一种非常有效的学习方法，它能够在高维特征空间得到优化的泛化界的超平面，能够使用核技术从而避免局部最小，通过间隔和限制支持向量的个数控制容量来防止过拟合。目前，SVM技术已经应用于各个领域，理论与实践都得到了充分的发展，在人脸识别，目标识别，文本识别等都有SVM 技术的成功应用。
+
+SVM算法是统计学习理论的一种实现方式。最基本思路就是要找到使测试样本的分类错误率达到最低的最佳超平面，也就是要找到一个分割平面，使得训练集中的训练样本距离该平面的距离尽量的远，该分割平面两侧的空白区域(margin)最大。超平面为：
+$$wx+b=0$$
+
+两侧的支持向量有：
+$$\begin{array}{ll}
+  wx_1+b=1\\wx_2+b=-1  
+\end{array}$$
+
+支持向量到平面的集合间隔为：
+$$d^*=\frac{wx+b}{||w||}=\frac{1}{||w||}$$
+
+为了让$d^*$最大，也就是$||w||$最小，那么构造一个目标函数为：$$\min\frac{1}{2}||w||^2$$
+
+条件是任何一个点到超平面的距离不小于1（线性可分数据上）：$y_i(wx_i+b)-1\geqslant 0$
+
+转化为Lagrange算法：
+$$L(w,b,\alpha)=\frac{1}{2}||w||^2-\sum_{i=1}^n\alpha_i(y_i(wx_i+b)-1)
+\tag{目标函数}$$
+
+令$\frac{\partial L}{\partial w}=0$,$\frac{\partial L}{\partial b}=0$有：
+$$\begin{array}{ll}
+    w=\sum_{i=1}^n\alpha_iy_ix_i\\\sum\alpha_iy_i=0
+\end{array}\tag{微分结果}$$
+
+所以$w$可以用$\{x_1,x_2,...,x_n\}$线性表示，并且有一部分$\alpha_i=0$,则对于$\alpha_i\neq 0$的样本矢量$x_i$为支持向量:$w=\sum_{i\in sv}\alpha_iy_ix_i$
+将微分结果带入目标函数，条件为$\alpha_i\geqslant 0,\sum\alpha_iy_i=0$
+使得：
+$$\max\{Q(\alpha)\}=\max\{-\frac{1}{2}\sum\limits_{i,j=1}^n\alpha_i\alpha_jy_iy_j(x_i,x_j)+\sum_{i=1}^n\alpha_i\}$$
+
+如果是线性不可分：約束條件為：
+$$\begin{array}{ll}
+  wx_1+b\geqslant1-\chi_1\\wx_2+b\leqslant\chi_i-1  
+\end{array}$$
+
+所以优化问题成为了：
+$$\begin{array}{ll}
+  \min\frac{1}{2}||w||^2+C\sum_{i=1}^n\chi_i\\y_i(wx_i+b)\geqslant 1-\chi_i\\\chi_i\geqslant 0
+\end{array}$$
+
+构造的Lagrange算法：
+$$L(w,b,\chi,\alpha,\beta)=\frac{1}{2}||w||^2+C\sum_{i=1}^n\chi_i-\sum_{i=1}^n\alpha_i(y_i(wx_i+b)-1+\chi_i)-\sum_{i=1}^n\beta_i\chi_i$$
+
+令$\frac{\partial L}{\partial w}=0$,$\frac{\partial L}{\partial b}=0$,$\frac{\partial L}{\partial \chi}=0$有：
+$$\begin{array}{ll}
+    w=\sum_{i=1}^n\alpha_iy_ix_i\\\sum\alpha_iy_i=0\\C-\alpha_i-\beta_i=0
+\end{array}\tag{微分结果}$$
+
+所以对偶问题：
+$$\max\{-\frac{1}{2}\sum_{i=1}^n\sum_{j=1}^ny_iy_j\alpha_i\alpha_j(x_i,x_j)+\sum_{i=1}^n\alpha_i\}$$
+
+$$s.t. \sum_{i=1}^n\alpha_iy_i=0,0\leqslant \alpha_i\leqslant C$$

@@ -1,0 +1,147 @@
+### VQ基本原理
+矢量量化(VQ)的基本原理是将若干个标量数据组成一个矢量（或者从一帧语音数据中提取的特征矢量）在多维空间给予整体量化，从而可以在信息量损失最小的情况下压缩数据量。假设有N个K维的特征向量$X=\{X_1,X_2,...,X_N\}$,($X$在K维欧几里得空间$R^K$中)，其中第i个矢量可写为：
+$$X_i=\{x_1,x_2,...,x_K\},i=1,2,...,N$$
+
+将K维欧几里得空间无遗漏地划分成$J$个互不相关的子空间$R_1,R_2,...,R_J$,有：
+$$\left\{\begin{array}{ll}
+    \bigcup_{j=1}^JR_j=R^K\\R_i\bigcap R_j=\Phi,i\neq j
+\end{array}\right.$$
+
+这些子空间$R_j$称为胞腔，在每个子空间$R_j$找一个代表向量$Y_j$，那么有J个代表矢量可以组成矢量集：$Y=\{Y_1,Y_2,...,Y_J\}$。这样，Y就组成了一个矢量量化器，被称为码本或码书，$Y_j$称为码矢或码字，$Y$内矢量的个数J叫做码本长度或码本尺寸。不同的划分或不同代表矢量选取方法可以构成不同的矢量量化器。
+
+当矢量量化器的如数一个任意矢量$X_i\in R^K$进行量化时，首先判断是哪个子空间$R_j$，然后输出子空间的代表矢量$Y_j$。也就是说，矢量量化过程就是用$Y_j$代表$X_i$的过程：
+$$Y_j=Q(X_i),1\leqslant j \leqslant J,1\leqslant i \leqslant N$$
+
+$Q(X_i)$为量化函数，所以，量化的全过程就是完成一个从$K$维欧几里得空间$R^K$中矢量$X_i$到K维空间$R^K$的有限子集$Y$的映射：
+$$Q:R^K\supset X\rightarrow Y=\{Y_1,Y_2,...,Y_J\}$$
+
+### 基于VQ的说话人识别算法
+说话人识别系统包含训练与识别过程。其中，训练包括：
+ - 从训练语音提取得到特征矢量，得到特征矢量集
+ - 选择合适的失真测度，并通过码本优化算法生成码本
+ - 重复训练修正优化码本
+ - 存储码本
+
+训练最关键的是建立码本，如果用$d(X,Y)$表示训练用特征矢量$X$与训练出码本的码字$Y$之间的畸变，那么最佳码本设计的任务就是在一定条件下，使得畸变的统计平均值$D=E[d(X,Y)]$达到最小，为了实现这个目的，需要有以下两点：
+1)根据X选择相应的码字$Y_l$时，应该遵从最近邻准则：$d(X,Y_l)=\underset{i}{\min}d(X,Y_j)$
+2)设所有选择码字$Y_l$的输入矢量$X$的集合为$S_l$,那么$Y_l$应使此集合中所有的矢量与$Y_l$之间的畸变值最小，$Y_l$应等于$S_l$中所有矢量的质心：$Y_l=\frac{1}{N}\sum_{X\in S_l}X,\forall l$，N是$S_l$中的矢量数量。
+
+根据这两点设计的递推算法就是LBG算法。
+ - 设定码本和迭代训练参数：设全部输入训练矢量$X$的集合为$S$,设置码本的尺寸为$J$;设置迭代算法的最大迭代次数为L,设置畸变改进阈值为$\delta$
+ - 设定初始值，设置J个码字的初始值为$Y_1^{(0)},Y_2^{(0)},...,Y_J^{(0)}$;设置初始畸变值为$\infin$,设置迭代次数初值$m=1$
+ - 假定根据最近邻准则将$S$分成了$J$个子集$S_1^{(m)},S_2^{(m)},...,S_J^{(m)}$,即有$X\in S_l^{(m)}$时，有：$d(X,Y_l^{(m-1)})\leqslant d(X,Y_i^{(m-1)}),\forall i,i\neq l$
+ - 计算总畸变$D^{(m)}=\sum\limits_{l=1}^J\sum\limits_{x\in S_l^{(m)}}d(X,Y_l^{(m-1)})$
+ - 计算畸变改进量$\Delta D^{(m)}$的相对值$\delta^{(m)}=\frac{\Delta D^{(m)}}{D^{(m)}}=\frac{|D^{(m-1)}-D^{(m)}|}{D^{(m)}}$
+ - 计算新码本的码字$Y_1^{(m)},Y_2^{(m)},...,Y_J^{(m)}$,$Y_l^{(m)}=\frac{1}{N_l}\sum\limits_{X\in S_{li}^{(m)}}X$
+ - 判断$\delta^{(m)}$是否小于$\delta$,若是，迭代终止，若不是，继续迭代执行
+ - 判断$m$是否小于L，若是，迭代终止，若不是，$m+=1$继续执行。
+ - 迭代终止：输出$Y_1^{(m)},Y_2^{(m)},...,Y_J^{(m)}$作为训练称的码本的码字，输出总畸变$D^{(m)}$
+
+
+~~~py
+import numpy as np
+
+
+def dis(u, xi):
+    """
+    计算欧式距离
+    :param u:
+    :param xi:
+    :return:
+    """
+    k = u.shape[1]
+    xi = xi.squeeze()
+    dis = np.zeros(k)
+    for i in range(k):
+        ui = u[:, i]
+        dis[i] = np.sum(np.power(xi - ui, 2))
+    return dis
+
+
+def lbg(x, k):
+    """
+    完成lbg均值聚类算法
+    :param x:为row*col矩阵，每一列为一个样本，每个样本有row个元素
+    :param k:返回k个分类
+    :return:
+    """
+    row, col = x.shape
+    epislon = 0.03
+    delta = 0.01
+    u = np.mean(x, axis=1).reshape(x.shape[0], -1)  # 第一个聚类中心，总体均值
+    v = {}
+    for i3 in range(int(np.log2(k))):
+        u = np.hstack((u * (1 - epislon), u * (1 + epislon)))
+        D = 0
+        DD = 1
+        while abs((D - DD) / (DD + epislon)) > delta:
+            DD = D
+            for i in range(pow(2, i3 + 1)):  # 初始化
+                vv = {}
+                vv['num'] = 0
+                vv['ele'] = np.zeros(row)
+                v[i] = vv
+            for i in range(col):  # 计算第i个样本
+                distance = dis(u, x[:, i])
+                pos = np.argmin(distance)
+                v[pos]['num'] += 1
+                if v[pos]['num'] == 1:
+                    v[pos]['ele'] = x[:, i]
+                else:
+                    v[pos]['ele'] = np.vstack((v[pos]['ele'], x[:, i]))
+            for i in range(pow(2, i3 + 1)):
+                u[:, i] = np.mean(v[i]['ele'], axis=0)
+                for m in range(v[i]['ele'].shape[0]):
+                    D += np.sum(np.power(v[i]['ele'][m] - u[:, i], 2))
+    for i in range(k):
+        v[i]['mean'] = u[:, i]
+    return v
+
+~~~
+
+~~~py
+from chapter2_基础.soundBase import *
+from chapter11_说话人识别.VQ import *
+from chapter10_语音识别.DTW.DCW import mfccf
+
+plt.rcParams['font.sans-serif'] = ['SimHei']
+plt.rcParams['axes.unicode_minus'] = False
+
+k = 8
+N = 4
+
+## 生成book
+u = np.zeros(N)
+for i in range(1, N + 1):
+    s = 'VQ_data/SX' + str(i) + '.WAV'
+    # s = 'VQ_data/mysound.WAV'
+    data, fs, bits = soundBase(s).audioread()
+    data /= np.max(data)
+    mel = mfccf(12, data, fs)
+    v = lbg(mel.T, k)
+    u[i] = v
+
+## 识别过程
+M = 4  # 每个人有M个待识别的样本
+l = 5
+## TODO
+# 这部分需要用新的语音信号对于MATLAB调试查看结果
+for iii in range(l):
+    for i in range(M):
+        Dstu = np.zeros(N)
+        s = 'VQ_data/TX{}_{}.wav'.format(iii, i)
+        data, fs, bits = soundBase(s).audioread()
+        data /= np.max(data)
+        mel = mfccf(12, data, fs)  # 测试数据特征
+        for ii in range(N):
+            for jj in range(mel.shape[1]):
+                distance = dis(u[jj], mel[:, jj])
+                Dstu[ii] += np.min(distance)
+        pos = np.argmin(Dstu)
+        if Dstu[pos] / mel.shape[1] >= 81:
+            print('测试者不是系统内人\n')
+        else:
+            print('测试者为{}'.format(pos + 1))
+
+~~~
+

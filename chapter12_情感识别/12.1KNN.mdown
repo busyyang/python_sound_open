@@ -1,0 +1,127 @@
+基于KNN的语音情感识别
+情感识别的框图如下，主要就是特征提取建模，然后在待测样本中提取相同的特征，送到模型中计算进行识别。
+![框图](./images/情感识别框图.jpg)
+
+### 特征
+短时能量：
+$$E_n=\sum_{m=0}^{N-1}x_n^2(m)$$
+
+短时抖动能量：
+$$E_s=\frac{\frac{1}{M-1}\sum_{n=1}^{M-1}|E_n-E_{n+1}|}{\frac{1}{M}\sum_{n=1}^ME_n}\times 100$$
+
+短时能量的线性回归系数：
+$$E_r=\frac{\sum_{n=1}^Mn·E_n-\frac{1}{M}\sum_{n=1}^Mn·\sum_{n=1}^ME_n}{\sum_{n=1}^Mn^2-\frac{1}{M}(\sum_{n=1}^M n)^2}$$
+
+短时能量的线性回归系数均方误差：
+$$E_p=\frac{1}{M}\sum_{n=1}^M(E_n-(\mu_1-E_r-\mu_n)-E_r·n)^2$$
+
+其中$\mu_n=\frac{1}{M}\sum_{n=1}^Mn$
+
+250Hz以下短时能量与全部短时能量的比：
+$$E_{250}/E=\frac{\sum_{n=1}^ME_{250,n}}{\sum_{n=1}^ME_{n}}\times 100$$
+
+基音频率及其衍生参数
+$$R_n(k)=\sum x_n(m)x_n(m+k)$$
+
+基音周期可以检测$R_n(k)$位置得出，其倒数即为基音频率F,将第i个浊音帧的基音频率表示为$F0_i$,语音中包含浊音总帧数为$M^*$,语音中总帧数为M：
+一阶基音频率抖动：
+$$F0_{s1}=\frac{\frac{1}{M^*-1}\sum\limits_{i=1}^{M^*-1}|F0_i-F0_{i+1}|}{\frac{1}{M^*}\sum\limits_{i=1}^{M^*}F0_i}\times 100$$
+
+二阶基音频率抖动：
+$$F0_{s2}=\frac{\frac{1}{M^*-2}\sum\limits_{i=2}^{M^*-1}|2F0_i-F0_{i-1}-F0_{i+1}|}{\frac{1}{M^*}\sum\limits_{i=1}^{M^*}F0_i}\times 100$$
+
+所有相邻帧中，满足$F(i)*F(i+1)!=0$的两帧可定义浊音间差分基音$dF=F(i)-F(i+1)$
+
+还有共振峰参数，MFCC等。
+
+### K近邻分类
+
+KNN分类的思想是给定一个在特征空间中的待分类样本，如果其附近的K个训练样本大多数属于一个类别，那么他也是这个类别。已知特征集为$\{X_1,X_2,...,X_K\}$，待分类样本为$X$,计算$X$与$X_l$的距离$D(X,X_l)=\sqrt{\sum_{i=1}^N[X(i)-X_l(i)]^2}$,$\min\{D(X,X_l)\}$是最邻近，选出$D(X,X_l)$最小的K个，然后投票决定。
+ - 提取特征，构成特征向量$X_1,X_2,...,X_n$
+ - 设定K的值
+ - 提取待识别样本的向量$X$，计算$X$与$X_l$的距离$D(X,X_l)$
+ - 统计$D(X,X_l)$前K个最小值分类，投票决定$X$的分类结果
+
+
+### 代码实现
+代码直接调用了mat文件，没有去在音频文件中提取。
+~~~py
+import numpy as np
+from scipy.io import loadmat
+from sklearn.metrics import confusion_matrix, f1_score
+import matplotlib.pyplot as plt
+
+
+def confusion_matrix_info(y_true, y_pred, labels=['fear', 'happy', 'neutr', 'sad', 'anger'], title='confusion matrix'):
+    """
+    计算混淆矩阵以及一些评价指标，并将混淆矩阵绘图出来
+    :param y_true: 真实标签，非one-hot编码
+    :param y_pred: 预测标签，非one-hot编码
+    :param labels: 标签的含义
+    :param title: 绘图的标题
+    :return:
+    """
+    import seaborn as sns
+    import pandas as pd
+    C2 = confusion_matrix(y_true, y_pred)
+    C = pd.DataFrame(C2, columns=labels, index=labels)
+    m, _ = C2.shape
+    for i in range(m):
+        precision = C2[i, i] / sum(C2[:, i])
+        recall = C2[i, i] / sum(C2[i, :])
+        f1 = 2 * precision * recall / (precision + recall)
+        print('In class {}:\t total samples: {}\t true predict samples: {}\t'
+              'acc={:.4f},\trecall={:.4f},\tf1-score={:.4f}'.format(
+            labels[i], sum(C2[i, :]), C2[i, i], precision, recall, f1))
+    print('-' * 100, '\n', 'average f1={:.4f}'.format(f1_score(y_true, y_pred, average='micro')))
+
+    f, ax = plt.subplots()
+    sns.heatmap(C, annot=True, ax=ax, cmap=plt.cm.binary)
+    ax.set_title(title)
+    ax.set_xlabel('predict')
+    ax.set_ylabel('true')
+    plt.show()
+
+
+def get_most_label(result):
+    rst = {}
+    for r in result:
+        if r not in rst.keys():
+            rst[r] = 1
+        else:
+            rst[r] += 1
+    m = sorted(rst.items(), key=lambda x: x[1], reverse=True)
+    return m[0][0]
+
+
+K = 9
+
+fear = loadmat('A_Fear.mat')['fearVec']
+happy = loadmat('F_Happiness.mat')['hapVec']
+neutral = loadmat('N_neutral.mat')['neutralVec']
+sadness = loadmat('T_sadness.mat')['sadnessVec']
+anger = loadmat('W_anger.mat')['angerVec']
+
+data = np.hstack((fear, happy, neutral, sadness, anger))
+y = np.array([[i] * 50 for i in range(5)]).flatten()
+per = np.random.permutation(250)
+data_train = data[:, per[:180]]
+label_train = y[per[:180]]
+data_test = data[:, per[180:]]
+label_test = y[per[180:]]
+label_pred = np.zeros(250 - 180)
+j = 0
+for test in data_test.T:
+    scores = np.zeros(len(data_train.T))
+    for i in range(len(data_train.T)):
+        scores[i] = np.sum(np.power(test - data_train[:, i], 2))
+    pos = np.argsort(scores)[:K]
+    result = label_train[pos]
+    label = get_most_label(result)
+    label_pred[j] = label
+    j += 1
+
+confusion_matrix_info(label_test, label_pred)
+
+~~~
+
