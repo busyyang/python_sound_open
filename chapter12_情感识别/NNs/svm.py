@@ -47,7 +47,9 @@ if __name__ == '__main__':
     data = np.hstack((fear, happy, neutral, sadness, anger)).T
     y = np.array([[i] * 50 for i in range(5)]).flatten()
     clf = svm.SVC()
-    clf.fit(data, y)
-    yp = clf.predict(data[::3])
-    confusion_matrix_info(y[::3], yp)
-    print(classification_report(y[::3], yp, target_names=['fear', 'happy', 'neutr', 'sad', 'anger']))
+    train = [True if (i + 1) % 5 != 0 else False for i in range(250)]
+    test = [True if (i + 1) % 5 == 0 else False for i in range(250)]
+    clf.fit(data[train], y[train])
+    yp = clf.predict(data[test])
+    confusion_matrix_info(y[test], yp)
+    print(classification_report(y[test], yp, target_names=['fear', 'happy', 'neutr', 'sad', 'anger']))
