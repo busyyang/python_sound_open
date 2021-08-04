@@ -185,7 +185,7 @@ class soundBase:
             # 最后一帧长度小于M的一半
             data = data[:M * (length // M)]
         spls = np.zeros(len(data) // M)
-        for i in range(length // M - 1):
+        for i in range(len(data)// M - 1):
             s = data[i * M:(i + 1) * M]
             spls[i] = spl_cal(s, fs, frameLen)
 
