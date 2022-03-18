@@ -30,9 +30,9 @@ def my_vad(x):
     Limit = o_sam * (segs - 1) + 1
     FrmtIndex = [i for i in range(0, Limit, o_sam)]  # 每一帧的起始位置
     # 短时过零率
-    ZCR_Vector = STZcr(x, w_sam, o_sam)
+    ZCR_Vector = STZcr(x, win, o_sam)
     # 能量
-    Erg_Vector = STMn(x, w_sam, o_sam)
+    Erg_Vector = STMn(x, win, o_sam)
     IMN = np.mean(Erg_Vector[:sil])
     IMX = np.max(Erg_Vector)
     l1 = 0.03 * (IMX - IMN) + IMN
